@@ -1,12 +1,18 @@
 ## Conventions de nommage
 
 # Convention de nommage des tickets
-Tous les tickets sont nommés en suivant le pattern patterne `<SOURCE><numéro> - <titre>`
+Tous les tickets sont nommés en suivant le pattern patterne `<CODE>-<numéro> <titre>`
+
+Source | Code
+-------|-------
+Cyber  | CY
+Dev    | DE
+Data   | DA
 
     Exemples:
-CYBER3 - creation HDFS
-DEV14 - gateway frontend
-DATA29 - heatmap collection des poubelles
+CY-3 creation HDFS
+DE-14 gateway frontend
+DA-29 heatmap collection des poubelles
 
 # Convention de nommage des branches
 Toutes les branches suivent la forme suivante : `<type>/<ticket>-<description>`
