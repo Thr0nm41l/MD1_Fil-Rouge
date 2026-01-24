@@ -1,0 +1,9 @@
+auth:
+  username: airflow
+  password: airflow
+  database: airflow
+
+primary:
+  persistence:
+    enabled: true
+    size: 5Gi

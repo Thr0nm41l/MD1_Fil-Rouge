@@ -1,0 +1,50 @@
+executor: CeleryExecutor
+
+data:
+  brokerUrl: redis://redis-master.default.svc.cluster.local:6379/0
+
+config:
+  core:
+    load_examples: "False"
+  database:
+    sql_alchemy_conn: postgresql+psycopg2://airflow:airflow@postgres-postgresql.default.svc.cluster.local:5432/airflow
+  # celery:
+  #   broker_url: redis://redis-master.default.svc.cluster.local:6379/0
+  #   result_backend: db+postgresql://airflow:airflow@postgres-postgresql.default.svc.cluster.local:5432/airflow
+
+postgresql:
+  enabled: false
+
+redis:
+  enabled: false   # on utilise celui qu'on a déjà déployé
+
+webserver:
+  replicas: 1
+  service:
+    type: NodePort
+
+scheduler:
+  replicas: 1
+
+workers:
+  replicas: 2
+  resources:
+    requests:
+      cpu: "250m"
+      memory: "512Mi"
+    limits:
+      cpu: "1"
+      memory: "1Gi"
+
+
+triggerer:
+  enabled: true
+
+dags:
+  gitSync:
+    enabled: true
+    repo: https://github.com/Thr0nm41l/MD1_Fil-Rouge.git
+    branch: feature/infra-airflow
+    rev: HEAD
+    subPath: dags
+    wait: 30
