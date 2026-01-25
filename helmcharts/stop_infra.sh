@@ -15,7 +15,7 @@ if [ $? -ne 0 ]; then
   echo "Failed to uninstall PostgreSQL"
 fi
 
-minikube stop
+#minikube stop
 
 echo "All Helm releases have been uninstalled." >&2
 exit 0

@@ -14,6 +14,18 @@ Il faut aussi activer l'addon metric-server pour faire de l'autoscaling des work
 minikube addons enable metrics-server
 ```
 
+## Créer les secrets kube (pas encore mis en place)
+```bash
+kubectl create secret generic airflow-variables \
+  --from-literal=AIRFLOW_VAR_ENV=local \
+  --from-literal=AIRFLOW_VAR_DATA_BUCKET=my-bucket \
+  --from-literal=AIRFLOW_VAR_MAX_RETRIES=3
+```
+```bash
+kubectl create secret generic airflow-connections \
+  --from-literal=AIRFLOW_CONN_MY_POSTGRES=postgresql://user:pass@host:5432/db
+```
+
 ## Lancer les instances Postegres
 ```bash
 helm install postgres bitnami/postgresql --values postgres-values.yaml

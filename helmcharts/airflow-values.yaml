@@ -2,15 +2,23 @@ executor: CeleryExecutor
 
 data:
   brokerUrl: redis://redis-master.default.svc.cluster.local:6379/0
+  metadataConnection:
+    user: airflow
+    pass: airflow
+    protocol: postgresql
+    host: postgres-postgresql.default.svc.cluster.local
+    port: 5432
+    db: airflow
+
+# extraEnvFrom:
+#   - secretRef:
+#       name: airflow-variables
+#   - secretRef:
+#       name: airflow-connections
 
 config:
   core:
     load_examples: "False"
-  database:
-    sql_alchemy_conn: postgresql+psycopg2://airflow:airflow@postgres-postgresql.default.svc.cluster.local:5432/airflow
-  # celery:
-  #   broker_url: redis://redis-master.default.svc.cluster.local:6379/0
-  #   result_backend: db+postgresql://airflow:airflow@postgres-postgresql.default.svc.cluster.local:5432/airflow
 
 postgresql:
   enabled: false
