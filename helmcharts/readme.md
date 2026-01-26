@@ -67,7 +67,7 @@ kubectl describe hpa airflow-worker
 
 ## Accéder à l'UI Airflow
 ```bash
-minikube service airflow-webserver
+kubectl port-forward svc/airflow-api-server 8080:8080 --namespace default
 ```
 
 Les dags sont récupérés depuis le répo du projet, dans le dossiers dags.
