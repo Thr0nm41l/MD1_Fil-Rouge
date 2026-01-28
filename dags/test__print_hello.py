@@ -34,7 +34,7 @@ default_args = {
 
 def print_hello():
     """Task function that prints hello to the logs"""
-    print("hello")
+    print("Hello, I am a test DAG that prints 'hello' to the logs!")
 
 # =============================================================
 # Define the DAG and tasks

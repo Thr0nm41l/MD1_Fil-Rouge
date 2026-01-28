@@ -14,12 +14,22 @@ Il faut aussi activer l'addon metric-server pour faire de l'autoscaling des work
 minikube addons enable metrics-server
 ```
 
+## Crééer les namespaces
+```bash
+kubectl create namespace airflow;
+kubectl create namespace datalake;
+kubectl create namespace monitoring
+```
+
 ## Créer les secrets kube (pas encore mis en place)
 ```bash
 kubectl create secret generic airflow-variables \
   --from-literal=AIRFLOW_VAR_ENV=local \
   --from-literal=AIRFLOW_VAR_DATA_BUCKET=my-bucket \
   --from-literal=AIRFLOW_VAR_MAX_RETRIES=3
+
+
+kubectl create secret generic username-airflow --from-literal=username=airflow --from-literal=password=airflow -n airflow
 ```
 ```bash
 kubectl create secret generic airflow-connections \

@@ -1,16 +1,16 @@
 #!/bin/bash
 
-helm uninstall airflow
+helm uninstall airflow -n airflow
 if [ $? -ne 0 ]; then
   echo "Failed to uninstall Airflow"
 fi
 
-helm uninstall redis
+helm uninstall redis -n datalake
 if [ $? -ne 0 ]; then
   echo "Failed to uninstall Redis"
 fi
 
-helm uninstall postgres
+helm uninstall postgres -n datalake
 if [ $? -ne 0 ]; then
   echo "Failed to uninstall PostgreSQL"
 fi

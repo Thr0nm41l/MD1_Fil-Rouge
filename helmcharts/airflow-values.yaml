@@ -1,12 +1,20 @@
 executor: CeleryExecutor
 
 data:
-  brokerUrl: redis://redis-master.default.svc.cluster.local:6379/0
+  brokerUrl: redis://redis-master.datalake.svc.cluster.local:6379/0
+  resultBackendConnection:
+    protocol: postgresql
+    user: airflow
+    pass: airflow
+    host: postgres-postgresql.datalake.svc.cluster.local
+    port: 5432
+    db: airflow
+    sslmode: disable
   metadataConnection:
     user: airflow
     pass: airflow
     protocol: postgresql
-    host: postgres-postgresql.default.svc.cluster.local
+    host: postgres-postgresql.datalake.svc.cluster.local
     port: 5432
     db: airflow
 
@@ -17,8 +25,13 @@ data:
 #       name: airflow-connections
 
 config:
-  core:
-    load_examples: "False"
+  # core:
+  #   load_examples: "False"
+  #   hostname_callable: airflow.utils.net.get_hostname
+  # logging:
+  #   remote_logging: "True"
+  celery:
+    worker_concurrency: 4
 
 postgresql:
   enabled: false
@@ -42,7 +55,7 @@ workers:
       memory: "512Mi"
     limits:
       cpu: "1"
-      memory: "1Gi"
+      memory: "2Gi"
 
 
 triggerer:
