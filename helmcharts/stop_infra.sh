@@ -10,6 +10,11 @@ if [ $? -ne 0 ]; then
   echo "Failed to uninstall Redis"
 fi
 
+helm uninstall pgadmin -n datalake
+if [ $? -ne 0 ]; then
+  echo "Failed to uninstall PgAdmin"
+fi
+
 helm uninstall postgres -n datalake
 if [ $? -ne 0 ]; then
   echo "Failed to uninstall PostgreSQL"
