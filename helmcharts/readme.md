@@ -4,17 +4,17 @@ Documentation 'How To' pour lancer l'infra.
 Suivre les instructions block par block.
 
 ## Pré-requis
-Docker
-Kubectl
-Minikube
-Helm
+Docker 
+Kubectl v1.15 ou plus
+Minikube v1.48 ou plus
+Helm v4.1.0 ou plus
 
 Il faut aussi activer l'addon metric-server pour faire de l'autoscaling des workers Airflow
 ```bash
 minikube addons enable metrics-server
 ```
 
-## Crééer les namespaces
+## Créer les namespaces
 ```bash
 kubectl create namespace airflow;
 kubectl create namespace datalake;
