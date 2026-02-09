@@ -113,3 +113,11 @@ dags:
     subPath: dags
     credentialsSecret: git-credentials
 ```
+
+### Récupérer le mot de passe admin de PostgresQL
+
+Login : postgres
+On peut récupérer le mot de passe en exécutant la commande suivante :
+```bash
+kubectl get secret postgres-postgresql -n datalake -o jsonpath='{.data.postgres-password}' | base64 -d && echo
+```

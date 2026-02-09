@@ -1,0 +1,36 @@
+env:
+  email: admin@localhost.io
+  password: admin
+  variables:
+    - name: PGADMIN_LISTEN_ADDRESS
+      value: "0.0.0.0"
+    - name: PGADMIN_LISTEN_PORT
+      value: "80"
+
+persistentVolume:
+  enabled: true
+  size: 5Gi
+
+# Pre-load PostgreSQL server configuration
+serverDefinitions:
+  enabled: true
+  servers:
+    airflowPostgres:
+      Name: "Airflow PostgreSQL (airflow user)"
+      Group: "Servers"
+      Host: "postgres-postgresql.datalake.svc.cluster.local"
+      Port: 5432
+      Username: "airflow"
+      SSLMode: "prefer"
+      MaintenanceDB: "airflow"
+      # Note: Password is 'airflow' defined in postgres-values.yaml, but should be entered manually on first connection for security reasons
+
+    postgresAdmin:
+      Name: "PostgreSQL Admin (superuser)"
+      Group: "Servers"
+      Host: "postgres-postgresql.datalake.svc.cluster.local"
+      Port: 5432
+      Username: "postgres"
+      SSLMode: "prefer"
+      MaintenanceDB: "postgres"
+      # Note: Password is 'postgresadmin' defined in postgres-values.yaml, but should be entered manually on first connection for security reasons

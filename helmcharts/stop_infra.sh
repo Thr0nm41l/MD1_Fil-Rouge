@@ -1,5 +1,11 @@
 #!/bin/bash
 
+# Kill any running port-forward processes
+echo "Stopping port-forwards..." >&2
+#pkill -f "kubectl port-forward.*airflow"
+#pkill -f "kubectl port-forward.*pgadmin"
+echo "Port-forwards stopped." >&2
+
 helm uninstall airflow -n airflow
 if [ $? -ne 0 ]; then
   echo "Failed to uninstall Airflow"

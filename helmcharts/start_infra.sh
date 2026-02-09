@@ -72,7 +72,7 @@ kubectl wait --for=condition=ready pod -l app.kubernetes.io/name=postgresql -n d
 echo "PostgreSQL pod is ready." >&2
 
 # Install PgAdmin
-helm install pgadmin bitnami/pgadmin --values pgadmin-values.yaml -n datalake
+helm install pgadmin runix/pgadmin4 --values pgadmin4-values.yaml -n datalake
 if [ $? -ne 0 ]; then
   echo "Failed to install PgAdmin" >&2
   exit 1
@@ -106,8 +106,9 @@ echo "Waiting for Airflow pods to be ready..." >&2
 kubectl wait --for=condition=ready pod -l component=webserver -n airflow --timeout=300s
 echo "Airflow pods are ready." >&2
 
-kubectl port-forward svc/airflow-api-server 8080:8080 --namespace airflow
-kubectl port-forward  svc/pgadmin4 5050:80 --namespace datalake
+# Port-forward Airflow and PgAdmin
+# kubectl port-forward svc/airflow-api-server 8080:8080 --namespace airflow &
+# kubectl port-forward svc/pgadmin-pgadmin4 5050:80 --namespace datalake &
 
 echo "All Helm charts have been installed." >&2
 exit 0

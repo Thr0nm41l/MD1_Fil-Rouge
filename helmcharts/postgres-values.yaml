@@ -1,4 +1,6 @@
 auth:
+  enablePostgresUser: true
+  postgresPassword: postgresadmin  # Password for postgres superuser (no special chars)
   username: airflow
   password: airflow
   database: airflow
