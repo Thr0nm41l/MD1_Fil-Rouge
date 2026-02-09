@@ -1,0 +1,59 @@
+# Prometheus Configuration for MD1 Infrastructure
+alertmanager:
+  enabled: true
+  persistence:
+    size: 2Gi
+
+prometheus:
+  enabled: true
+  prometheusSpec:
+    retention: 7d
+    storageSpec:
+      volumeClaimTemplate:
+        spec:
+          accessModes: ["ReadWriteOnce"]
+          resources:
+            requests:
+              storage: 5Gi
+
+    # Enable service discovery for Kubernetes
+    serviceMonitorSelectorNilUsesHelmValues: false
+    podMonitorSelectorNilUsesHelmValues: false
+
+    # Additional scrape configs for custom monitoring
+    additionalScrapeConfigs: []
+
+grafana:
+  enabled: false  # Grafana will be installed separately
+
+# Node exporter for system metrics
+nodeExporter:
+  enabled: true
+
+# Kube state metrics for Kubernetes resource metrics
+kubeStateMetrics:
+  enabled: true
+
+# Kubernetes API server monitoring
+kubeApiServer:
+  enabled: true
+
+# Kubelet monitoring
+kubelet:
+  enabled: true
+
+# CoreDNS monitoring
+coreDns:
+  enabled: true
+
+# Controller manager monitoring
+kubeControllerManager:
+  enabled: false  # Not available in Minikube by default
+
+# Scheduler monitoring
+kubeScheduler:
+  enabled: false  # Not available in Minikube by default
+
+# Etcd monitoring
+kubeEtcd:
+  enabled: false  # Not available in Minikube by default

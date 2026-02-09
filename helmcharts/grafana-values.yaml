@@ -1,0 +1,108 @@
+# Grafana Configuration for MD1 Infrastructure
+# Deployed separately from Prometheus stack
+
+# Admin credentials
+adminUser: admin
+adminPassword: Gr@f@n@Admin123
+
+# Persistence
+persistence:
+  enabled: true
+  type: pvc
+  size: 5Gi
+  accessModes:
+    - ReadWriteOnce
+
+# Service configuration
+service:
+  type: ClusterIP
+  port: 80
+
+# Resource limits
+resources:
+  limits:
+    cpu: 500m
+    memory: 512Mi
+  requests:
+    cpu: 250m
+    memory: 256Mi
+
+# Data sources configuration
+datasources:
+  datasources.yaml:
+    apiVersion: 1
+    datasources:
+    # Prometheus datasource
+    - name: Prometheus
+      type: prometheus
+      url: http://prometheus-kube-prometheus-prometheus.monitoring.svc.cluster.local:9090
+      access: proxy
+      isDefault: true
+      jsonData:
+        timeInterval: 30s
+    # PostgreSQL datasource
+    - name: PostgreSQL
+      type: postgres
+      url: postgres-postgresql.datalake.svc.cluster.local:5432
+      database: postgres
+      user: postgres
+      secureJsonData:
+        password: postgresadmin
+      jsonData:
+        sslmode: disable
+        postgresVersion: 1300  # PostgreSQL 13.x
+        timescaledb: false
+
+# Dashboard providers
+dashboardProviders:
+  dashboardproviders.yaml:
+    apiVersion: 1
+    providers:
+    - name: 'default'
+      orgId: 1
+      folder: ''
+      type: file
+      disableDeletion: false
+      editable: true
+      options:
+        path: /var/lib/grafana/dashboards/default
+
+# Pre-load dashboards (optional)
+dashboards:
+  default:
+    # You can add dashboard JSON files here
+    # kubernetes-cluster:
+    #   gnetId: 7249
+    #   revision: 1
+    #   datasource: Prometheus
+
+# Plugins to install
+plugins:
+  - grafana-piechart-panel
+  - grafana-clock-panel
+
+# Grafana configuration
+grafana.ini:
+  server:
+    root_url: http://localhost:3000
+  analytics:
+    check_for_updates: true
+  security:
+    admin_user: admin
+    admin_password: Gr@f@n@Admin123
+  users:
+    allow_sign_up: false
+    auto_assign_org: true
+    auto_assign_org_role: Viewer
+  auth.anonymous:
+    enabled: false
+
+# Enable RBAC
+rbac:
+  create: true
+  pspEnabled: false
+
+# Service account
+serviceAccount:
+  create: true
+  name: grafana
