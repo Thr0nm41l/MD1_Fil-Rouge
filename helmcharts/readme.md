@@ -4,7 +4,7 @@ Documentation 'How To' pour lancer l'infra.
 Suivre les instructions block par block.
 
 ## Pré-requis
-Docker 
+Docker Engine v29.1.3 ou plus
 Kubectl v1.15 ou plus
 Minikube v1.48 ou plus
 Helm v4.1.0 ou plus
