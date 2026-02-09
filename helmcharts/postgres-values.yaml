@@ -6,6 +6,13 @@ auth:
   database: airflow
 
 primary:
+  ressources:
+    requests:
+      cpu: "250m"
+      memory: "512Mi"
+    limits:
+      cpu: "1"
+      memory: "2Gi"
   persistence:
     enabled: true
     size: 5Gi
