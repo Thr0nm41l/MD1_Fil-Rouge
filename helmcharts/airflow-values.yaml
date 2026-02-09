@@ -1,0 +1,71 @@
+executor: CeleryExecutor
+
+data:
+  brokerUrl: redis://redis-master.datalake.svc.cluster.local:6379/0
+  resultBackendConnection:
+    protocol: postgresql
+    user: airflow
+    pass: airflow
+    host: postgres-postgresql.datalake.svc.cluster.local
+    port: 5432
+    db: airflow
+    sslmode: disable
+  metadataConnection:
+    user: airflow
+    pass: airflow
+    protocol: postgresql
+    host: postgres-postgresql.datalake.svc.cluster.local
+    port: 5432
+    db: airflow
+
+# extraEnvFrom:
+#   - secretRef:
+#       name: airflow-variables
+#   - secretRef:
+#       name: airflow-connections
+
+config:
+  # core:
+  #   load_examples: "False"
+  #   hostname_callable: airflow.utils.net.get_hostname
+  # logging:
+  #   remote_logging: "True"
+  celery:
+    worker_concurrency: 4
+
+postgresql:
+  enabled: false
+
+redis:
+  enabled: false   # on utilise celui qu'on a déjà déployé
+
+webserver:
+  replicas: 1
+  service:
+    type: NodePort
+
+scheduler:
+  replicas: 1
+
+workers:
+  replicas: 2
+  resources:
+    requests:
+      cpu: "250m"
+      memory: "512Mi"
+    limits:
+      cpu: "1"
+      memory: "2Gi"
+
+
+triggerer:
+  enabled: true
+
+dags:
+  gitSync:
+    enabled: true
+    repo: https://github.com/Thr0nm41l/MD1_Fil-Rouge.git
+    branch: feature/infra-airflow
+    rev: HEAD
+    subPath: dags
+    wait: 30

@@ -1,0 +1,6 @@
+auth:
+  enabled: false
+
+master:
+  persistence:
+    enabled: false
