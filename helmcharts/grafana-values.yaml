@@ -1,108 +1,61 @@
 # Grafana Configuration for MD1 Infrastructure
-# Deployed separately from Prometheus stack
+# Uses the official grafana/grafana chart (https://grafana.github.io/helm-charts)
 
-# Admin credentials (stored in Kubernetes secret for security)
-adminUser: admin
+# Admin credentials sourced from a Kubernetes secret
+# Create with: kubectl create secret generic grafana-admin-credentials \
+#   --from-literal=admin-user=admin \
+#   --from-literal=admin-password=<your-password> \
+#   -n monitoring
 admin:
   existingSecret: grafana-admin-credentials
   userKey: admin-user
   passwordKey: admin-password
 
-# Persistence
+# Datasource credentials injected via a K8s secret mounted as env vars.
+# Grafana expands ${VAR} in provisioning files at runtime.
+extraEnvFrom:
+  - secretRef:
+      name: grafana-datasource-credentials   # created by start_infra.sh from .env
+
 persistence:
   enabled: true
-  type: pvc
-  size: 5Gi
-  accessModes:
-    - ReadWriteOnce
+  size: 2Gi
 
-# Service configuration
-service:
-  type: ClusterIP
-  port: 80
-
-# Resource limits
 resources:
-  limits:
-    cpu: 500m
-    memory: 512Mi
   requests:
-    cpu: 250m
-    memory: 256Mi
+    cpu: "100m"
+    memory: "128Mi"
+  limits:
+    cpu: "500m"
+    memory: "512Mi"
 
-# Data sources configuration
+# Pre-configured datasources
 datasources:
   datasources.yaml:
     apiVersion: 1
     datasources:
-    # Prometheus datasource
-    - name: Prometheus
-      type: prometheus
-      url: http://prometheus-kube-prometheus-prometheus.monitoring.svc.cluster.local:9090
-      access: proxy
-      isDefault: true
-      jsonData:
-        timeInterval: 30s
-    # PostgreSQL datasource
-    - name: PostgreSQL
-      type: postgres
-      url: postgres-postgresql.datalake.svc.cluster.local:5432
-      database: postgres
-      user: postgres
-      secureJsonData:
-        password: postgresadmin
-      jsonData:
-        sslmode: disable
-        postgresVersion: 1300  # PostgreSQL 13.x
-        timescaledb: false
+      - name: Prometheus
+        type: prometheus
+        uid: prometheus
+        url: http://prometheus-kube-prometheus-prometheus.monitoring.svc.cluster.local:9090
+        access: proxy
+        isDefault: true
+        jsonData:
+          timeInterval: "30s"
 
-# Dashboard providers
-dashboardProviders:
-  dashboardproviders.yaml:
-    apiVersion: 1
-    providers:
-    - name: 'default'
-      orgId: 1
-      folder: ''
-      type: file
-      disableDeletion: false
-      editable: true
-      options:
-        path: /var/lib/grafana/dashboards/default
-
-# Pre-load dashboards (optional)
-dashboards:
-  default:
-    # You can add dashboard JSON files here
-    # kubernetes-cluster:
-    #   gnetId: 7249
-    #   revision: 1
-    #   datasource: Prometheus
-
-# Plugins to install
-plugins:
-  - grafana-piechart-panel
-  - grafana-clock-panel
-
-# Grafana configuration
-grafana.ini:
-  server:
-    root_url: http://localhost:3000
-  analytics:
-    check_for_updates: true
-  users:
-    allow_sign_up: false
-    auto_assign_org: true
-    auto_assign_org_role: Viewer
-  auth.anonymous:
-    enabled: false
-
-# Enable RBAC
-rbac:
-  create: true
-  pspEnabled: false
-
-# Service account
-serviceAccount:
-  create: true
-  name: grafana
+      - name: PostgreSQL
+        type: postgres
+        uid: postgresql
+        url: postgres-postgresql.datalake.svc.cluster.local:5432
+        user: postgres
+        access: proxy
+        secureJsonData:
+          password: "${POSTGRES_ADMIN_PASSWORD}"
+        jsonData:
+          database: airflow
+          sslmode: disable
+          maxOpenConns: 10
+          maxIdleConns: 2
+          connMaxLifetime: 14400
+          postgresVersion: 1500
+          timescaledb: false

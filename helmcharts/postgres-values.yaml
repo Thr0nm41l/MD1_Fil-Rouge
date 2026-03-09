@@ -1,8 +1,10 @@
 auth:
   enablePostgresUser: true
-  postgresPassword: postgresadmin  # Password for postgres superuser (no special chars)
+  existingSecret: postgres-credentials   # created by start_infra.sh from .env
+  secretKeys:
+    adminPasswordKey: postgres-password  # key for the postgres superuser
+    userPasswordKey: airflow-password    # key for the airflow user
   username: airflow
-  password: airflow
   database: airflow
 
 primary:

@@ -1,6 +1,30 @@
 #!/bin/bash
 
 # ============================================================
+# Load Credentials from .env
+# ============================================================
+
+if [ ! -f .env ]; then
+  echo "Error: .env file not found. Copy .env.example to .env and fill in your credentials." >&2
+  exit 1
+fi
+source .env
+
+required_vars=(
+  POSTGRES_ADMIN_PASSWORD AIRFLOW_DB_USER AIRFLOW_DB_PASSWORD
+  PGADMIN_EMAIL PGADMIN_PASSWORD
+  GRAFANA_ADMIN_USER GRAFANA_ADMIN_PASSWORD
+)
+for var in "${required_vars[@]}"; do
+  if [ -z "${!var}" ]; then
+    echo "Error: required variable '$var' is not set in .env" >&2
+    exit 1
+  fi
+done
+
+echo "Credentials loaded from .env." >&2
+
+# ============================================================
 # Utilitary Functions
 # ============================================================
 
@@ -39,15 +63,46 @@ init_namespace monitoring
 echo "Namespaces are set up." >&2
 echo "" >&2
 
-# Check kube secrets
-# kubectl get secrets username-airflow -n airflow
-# if [ $? -ne 0 ]; then
-#   echo "Secret 'username-airflow' does not exist in 'airflow' namespace. You need to create it." >&2
-# else
-#   echo "Secret 'username-airflow' already exists in 'airflow' namespace."
-# fi
+# ============================================================
+# Kubernetes Secrets
+# ============================================================
 
+# Using --dry-run=client | kubectl apply to make creation idempotent
 
+# Used by the postgres superuser
+kubectl create secret generic postgres-credentials \
+  --from-literal=postgres-password="${POSTGRES_ADMIN_PASSWORD}" \
+  --from-literal=airflow-db-user="${AIRFLOW_DB_USER}" \
+  --from-literal=airflow-password="${AIRFLOW_DB_PASSWORD}" \
+  -n datalake --dry-run=client -o yaml | kubectl apply -f -
+
+# Used by pgAdmin to authenticate to pgAdmin UI
+kubectl create secret generic pgadmin-credentials \
+  --from-literal=password="${PGADMIN_PASSWORD}" \
+  -n datalake --dry-run=client -o yaml | kubectl apply -f -
+
+# Used by Grafana to authenticate to the Grafana UI
+kubectl create secret generic grafana-admin-credentials \
+  --from-literal=admin-user="${GRAFANA_ADMIN_USER}" \
+  --from-literal=admin-password="${GRAFANA_ADMIN_PASSWORD}" \
+  -n monitoring --dry-run=client -o yaml | kubectl apply -f -
+
+# Used by Grafana to connect to the PostgreSQL datasource
+kubectl create secret generic grafana-datasource-credentials \
+  --from-literal=POSTGRES_ADMIN_PASSWORD="${POSTGRES_ADMIN_PASSWORD}" \
+  -n monitoring --dry-run=client -o yaml | kubectl apply -f -
+
+# Used by Airflow to connect to the metadata database and result backend
+kubectl create secret generic airflow-metadata-credentials \
+  --from-literal=connection="postgresql+psycopg2://${AIRFLOW_DB_USER}:${AIRFLOW_DB_PASSWORD}@postgres-postgresql.datalake.svc.cluster.local:5432/airflow" \
+  -n airflow --dry-run=client -o yaml | kubectl apply -f -
+
+kubectl create secret generic airflow-result-backend-credentials \
+  --from-literal=connection="db+postgresql://${AIRFLOW_DB_USER}:${AIRFLOW_DB_PASSWORD}@postgres-postgresql.datalake.svc.cluster.local:5432/airflow" \
+  -n airflow --dry-run=client -o yaml | kubectl apply -f -
+
+echo "Kubernetes secrets created." >&2
+echo "" >&2
 
 # ============================================================
 # Helm Repo And Charts Installation
@@ -127,14 +182,7 @@ echo "Applying ServiceMonitors..." >&2
 kubectl apply -f servicemonitors.yaml
 echo "ServiceMonitors applied." >&2
 
-# Create Grafana admin secret
-echo "Creating Grafana admin credentials secret..." >&2
-kubectl create secret generic grafana-admin-credentials \
-  --from-literal=admin-user=admin \
-  --from-literal=admin-password=Gr@f@n@Admin123 \
-  -n monitoring --dry-run=client -o yaml | kubectl apply -f -
-
-# Install Grafana (separate from Prometheus)
+# Install Grafana
 helm install grafana grafana/grafana --values grafana-values.yaml -n monitoring
 if [ $? -ne 0 ]; then
   echo "Failed to install Grafana" >&2
@@ -165,9 +213,9 @@ echo "pgAdmin:" >&2
 echo "  kubectl port-forward svc/pgadmin-pgadmin4 5050:80 --namespace datalake" >&2
 echo "  http://localhost:5050 (admin@admin.com / admin)" >&2
 echo "" >&2
-echo "Grafana (Monitoring Dashboards):" >&2
+echo "Grafana (Dashboards):" >&2
 echo "  kubectl port-forward svc/grafana 3000:80 --namespace monitoring" >&2
-echo "  http://localhost:3000 (admin / Gr@f@n@Admin123)" >&2
+echo "  http://localhost:3000 (admin / <your-password>)" >&2
 echo "" >&2
 echo "Prometheus (Metrics):" >&2
 echo "  kubectl port-forward svc/prometheus-kube-prometheus-prometheus 9090:9090 --namespace monitoring" >&2

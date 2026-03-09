@@ -49,8 +49,6 @@ if [ $? -ne 0 ]; then
   echo "Failed to uninstall Grafana"
 else
   stopedstacknumber=$((stopedstacknumber + 1))
-  # Delete Grafana admin secret
-  kubectl delete secret grafana-admin-credentials -n monitoring 2>/dev/null
 fi
 
 # Remove ServiceMonitors
@@ -60,7 +58,9 @@ if [ $? -ne 0 ]; then
 else
   if [ $stopedstacknumber -eq $stacknumber ]; then
     echo "All Helm releases and ServiceMonitors have been uninstalled successfully." >&2
-    minikube stop
+    #minikube stop
+    # To delete PVCs:
+    # kubectl delete pvc --all -n datalake; kubectl delete pvc --all -n airflow; kubectl delete pvc --all -n monitoring
   else
     echo "Some Helm releases or ServiceMonitors may not have been uninstalled successfully." >&2
   fi

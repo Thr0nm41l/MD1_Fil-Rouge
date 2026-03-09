@@ -2,21 +2,8 @@ executor: CeleryExecutor
 
 data:
   brokerUrl: redis://redis-master.datalake.svc.cluster.local:6379/0
-  resultBackendConnection:
-    protocol: postgresql
-    user: airflow
-    pass: airflow
-    host: postgres-postgresql.datalake.svc.cluster.local
-    port: 5432
-    db: airflow
-    sslmode: disable
-  metadataConnection:
-    user: airflow
-    pass: airflow
-    protocol: postgresql
-    host: postgres-postgresql.datalake.svc.cluster.local
-    port: 5432
-    db: airflow
+  metadataSecretName: airflow-metadata-credentials           # created by start_infra.sh from .env
+  resultBackendSecretName: airflow-result-backend-credentials  # created by start_infra.sh from .env
 
 # extraEnvFrom:
 #   - secretRef:
@@ -65,7 +52,7 @@ dags:
   gitSync:
     enabled: true
     repo: https://github.com/Thr0nm41l/MD1_Fil-Rouge.git
-    branch: feature/infra-airflow
+    branch: main
     rev: HEAD
     subPath: dags
     wait: 30
