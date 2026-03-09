@@ -112,6 +112,15 @@ kubectl apply -f servicemonitors.yaml
 
 ### 8. Install Grafana
 
+First, create the admin credentials secret:
+```bash
+kubectl create secret generic grafana-admin-credentials \
+  --from-literal=admin-user=admin \
+  --from-literal=admin-password=Gr@f@n@Admin123 \
+  -n monitoring
+```
+
+Then install Grafana:
 ```bash
 helm install grafana grafana/grafana \
   --values grafana-values.yaml \
@@ -119,6 +128,8 @@ helm install grafana grafana/grafana \
 ```
 
 Grafana is installed separately from Prometheus for better separation of concerns and independent lifecycle management.
+
+**Note:** Admin credentials are stored in a Kubernetes secret for security, not in the values file.
 
 ## Accessing the Web Interfaces
 

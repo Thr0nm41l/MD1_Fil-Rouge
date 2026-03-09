@@ -1,5 +1,8 @@
 #!/bin/bash
 
+# Alternative infrastructure setup using Grafana Operator
+# This script uses the modern, non-deprecated Grafana Operator instead of the deprecated Helm chart
+
 # ============================================================
 # Utilitary Functions
 # ============================================================
@@ -25,29 +28,13 @@ function init_namespace {
 # Kubernetes Cluster Setup
 # ============================================================
 
-#minikube start
-
-# Create a namespace for the datalake
+# Create namespaces
 init_namespace datalake
-
-# Create namespace for airflow
 init_namespace airflow
-
-# Create namespace for monitoring
 init_namespace monitoring
 
 echo "Namespaces are set up." >&2
 echo "" >&2
-
-# Check kube secrets
-# kubectl get secrets username-airflow -n airflow
-# if [ $? -ne 0 ]; then
-#   echo "Secret 'username-airflow' does not exist in 'airflow' namespace. You need to create it." >&2
-# else
-#   echo "Secret 'username-airflow' already exists in 'airflow' namespace."
-# fi
-
-
 
 # ============================================================
 # Helm Repo And Charts Installation
@@ -66,7 +53,7 @@ helm install postgres bitnami/postgresql --values postgres-values.yaml -n datala
 if [ $? -ne 0 ]; then
   echo "Failed to install PostgreSQL" >&2
   exit 1
-else 
+else
   echo "PostgreSQL installed successfully." >&2
 fi
 
@@ -79,7 +66,7 @@ helm install pgadmin runix/pgadmin4 --values pgadmin4-values.yaml -n datalake
 if [ $? -ne 0 ]; then
   echo "Failed to install PgAdmin" >&2
   exit 1
-else 
+else
   echo "PgAdmin installed successfully." >&2
 fi
 
@@ -88,7 +75,7 @@ helm install redis bitnami/redis --values redis-values.yaml -n datalake
 if [ $? -ne 0 ]; then
   echo "Failed to install Redis" >&2
   exit 1
-else 
+else
   echo "Redis installed successfully." >&2
 fi
 
@@ -101,7 +88,7 @@ helm install airflow apache-airflow/airflow --values airflow-values.yaml --timeo
 if [ $? -ne 0 ]; then
   echo "Failed to install Airflow" >&2
   exit 1
-else 
+else
   echo "Airflow installed successfully." >&2
 fi
 
@@ -127,33 +114,55 @@ echo "Applying ServiceMonitors..." >&2
 kubectl apply -f servicemonitors.yaml
 echo "ServiceMonitors applied." >&2
 
-# Create Grafana admin secret
-echo "Creating Grafana admin credentials secret..." >&2
-kubectl create secret generic grafana-admin-credentials \
-  --from-literal=admin-user=admin \
-  --from-literal=admin-password=Gr@f@n@Admin123 \
-  -n monitoring --dry-run=client -o yaml | kubectl apply -f -
-
-# Install Grafana (separate from Prometheus)
-helm install grafana grafana/grafana --values grafana-values.yaml -n monitoring
+# Install Grafana Operator
+echo "Installing Grafana Operator..." >&2
+helm install grafana-operator grafana/grafana-operator \
+  --values grafana-operator-values.yaml \
+  -n monitoring
 if [ $? -ne 0 ]; then
-  echo "Failed to install Grafana" >&2
+  echo "Failed to install Grafana Operator" >&2
   exit 1
 else
-  echo "Grafana installed successfully." >&2
+  echo "Grafana Operator installed successfully." >&2
 fi
 
+echo "Waiting for Grafana Operator to be ready..." >&2
+kubectl wait --for=condition=ready pod -l app.kubernetes.io/name=grafana-operator -n monitoring --timeout=300s
+echo "Grafana Operator is ready." >&2
+
+# Create Grafana instance
+echo "Creating Grafana instance..." >&2
+kubectl apply -f grafana-instance.yaml
+if [ $? -ne 0 ]; then
+  echo "Failed to create Grafana instance" >&2
+  exit 1
+else
+  echo "Grafana instance created successfully." >&2
+fi
+
+# Wait a bit for Grafana to be created
+sleep 10
+
 echo "Waiting for Grafana pod to be ready..." >&2
-kubectl wait --for=condition=ready pod -l app.kubernetes.io/name=grafana -n monitoring --timeout=300s
+kubectl wait --for=condition=ready pod -l app=grafana -n monitoring --timeout=300s 2>/dev/null || echo "Grafana pod may still be starting..."
 echo "Grafana pod is ready." >&2
+
+# Create Grafana datasources
+echo "Creating Grafana datasources..." >&2
+kubectl apply -f grafana-datasources.yaml
+if [ $? -ne 0 ]; then
+  echo "Failed to create Grafana datasources" >&2
+else
+  echo "Grafana datasources created successfully." >&2
+fi
 
 # Port-forward commands (uncomment to auto-start)
 # kubectl port-forward svc/airflow-api-server 8080:8080 --namespace airflow &
 # kubectl port-forward svc/pgadmin-pgadmin4 5050:80 --namespace datalake &
-# kubectl port-forward svc/grafana 3000:80 --namespace monitoring &
+# kubectl port-forward svc/grafana-service 3000:3000 --namespace monitoring &
 # kubectl port-forward svc/prometheus-kube-prometheus-prometheus 9090:9090 --namespace monitoring &
 
-echo "All Helm charts have been installed." >&2
+echo "All components have been installed." >&2
 echo "" >&2
 echo "=== Access Your Services ===" >&2
 echo "" >&2
@@ -165,8 +174,8 @@ echo "pgAdmin:" >&2
 echo "  kubectl port-forward svc/pgadmin-pgadmin4 5050:80 --namespace datalake" >&2
 echo "  http://localhost:5050 (admin@admin.com / admin)" >&2
 echo "" >&2
-echo "Grafana (Monitoring Dashboards):" >&2
-echo "  kubectl port-forward svc/grafana 3000:80 --namespace monitoring" >&2
+echo "Grafana (Monitoring Dashboards - via Operator):" >&2
+echo "  kubectl port-forward svc/grafana-service 3000:3000 --namespace monitoring" >&2
 echo "  http://localhost:3000 (admin / Gr@f@n@Admin123)" >&2
 echo "" >&2
 echo "Prometheus (Metrics):" >&2

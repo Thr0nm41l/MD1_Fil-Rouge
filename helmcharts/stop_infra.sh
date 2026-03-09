@@ -49,6 +49,8 @@ if [ $? -ne 0 ]; then
   echo "Failed to uninstall Grafana"
 else
   stopedstacknumber=$((stopedstacknumber + 1))
+  # Delete Grafana admin secret
+  kubectl delete secret grafana-admin-credentials -n monitoring 2>/dev/null
 fi
 
 # Remove ServiceMonitors

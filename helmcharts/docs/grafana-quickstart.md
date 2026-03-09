@@ -17,6 +17,52 @@ After running `./start_infra.sh`, Grafana is automatically configured with:
 - Persistent storage (5Gi)
 - Additional plugins installed
 
+## About the Grafana Chart
+
+### Chart Information
+
+**Chart Used:** `grafana/grafana`
+**Repository:** `https://grafana.github.io/helm-charts`
+
+### Deprecation Warning
+
+You may see this warning during installation:
+```
+level=WARN msg="this chart is deprecated"
+```
+
+**Don't worry!** This is expected. The chart:
+- ✅ Still works perfectly for development and testing
+- ✅ Continues to receive security updates
+- ✅ Is ideal for Minikube and learning environments
+- ⚠️ Is in maintenance mode (no new features)
+
+For large-scale production, Grafana Labs recommends the [Grafana Operator](https://github.com/grafana-operator/grafana-operator), but the Helm chart is perfect for our use case.
+
+### Security: Admin Credentials
+
+Admin credentials are stored in a **Kubernetes secret** (not in configuration files) for security:
+
+**The secret is created automatically** by `start_infra.sh`:
+```bash
+kubectl create secret generic grafana-admin-credentials \
+  --from-literal=admin-user=admin \
+  --from-literal=admin-password=Gr@f@n@Admin123 \
+  -n monitoring
+```
+
+**Why this approach?**
+- ✅ Passwords not stored in Git
+- ✅ Kubernetes-native secret management
+- ✅ Easy password rotation
+- ✅ Auditable access
+
+**Retrieve the password:**
+```bash
+kubectl get secret grafana-admin-credentials -n monitoring \
+  -o jsonpath='{.data.admin-password}' | base64 -d && echo
+```
+
 ## Quick Access
 
 ### 1. Start Port Forward
@@ -389,6 +435,51 @@ kubectl get svc grafana -n monitoring
 2. Add caching to slow panels
 3. Optimize queries (use aggregation)
 4. Increase Grafana resources in `grafana-values.yaml`
+
+### Installation Error: "Sensitive key should not be defined explicitly"
+
+**Error message:**
+```
+Error: INSTALLATION FAILED: execution error at (grafana/templates/deployment.yaml:36:28):
+Sensitive key 'security.admin_password' should not be defined explicitly in values.
+```
+
+**Cause:** Modern Grafana charts don't allow passwords in values files for security.
+
+**Solution:** Our setup already handles this correctly:
+1. Secret is created first: `grafana-admin-credentials`
+2. Values file references the secret: `admin.existingSecret`
+3. No passwords in Git
+
+**If you see this error:**
+```bash
+# Verify secret exists
+kubectl get secret grafana-admin-credentials -n monitoring
+
+# If missing, create it
+kubectl create secret generic grafana-admin-credentials \
+  --from-literal=admin-user=admin \
+  --from-literal=admin-password=Gr@f@n@Admin123 \
+  -n monitoring
+
+# Then retry installation
+helm install grafana grafana/grafana --values grafana-values.yaml -n monitoring
+```
+
+### Chart Deprecation Warning
+
+**Warning message:**
+```
+level=WARN msg="this chart is deprecated"
+```
+
+**This is expected and safe to ignore.** The chart:
+- Still works perfectly
+- Receives security updates
+- Is ideal for development/testing
+- Won't break existing installations
+
+For production at scale, consider [Grafana Operator](https://github.com/grafana-operator/grafana-operator), but for Minikube this chart is perfect.
 
 ## Best Practices
 
