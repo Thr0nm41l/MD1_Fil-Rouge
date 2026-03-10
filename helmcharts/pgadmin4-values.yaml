@@ -1,6 +1,9 @@
+existingSecret: pgadmin-credentials   # created by start_infra.sh from .env
+secretKeys:
+  pgadminPasswordKey: password
+
 env:
   email: admin@localhost.io
-  password: admin
   variables:
     - name: PGADMIN_LISTEN_ADDRESS
       value: "0.0.0.0"

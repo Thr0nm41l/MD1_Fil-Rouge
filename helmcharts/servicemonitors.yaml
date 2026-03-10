@@ -1,0 +1,48 @@
+# ServiceMonitors for monitoring custom applications
+# Apply with: kubectl apply -f servicemonitors.yaml
+---
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: postgres-servicemonitor
+  namespace: datalake
+  labels:
+    app: postgresql
+spec:
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: postgresql
+  endpoints:
+  - port: metrics
+    interval: 30s
+---
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: redis-servicemonitor
+  namespace: datalake
+  labels:
+    app: redis
+spec:
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: redis
+  endpoints:
+  - port: metrics
+    interval: 30s
+---
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: airflow-servicemonitor
+  namespace: airflow
+  labels:
+    app: airflow
+spec:
+  selector:
+    matchLabels:
+      component: webserver
+  endpoints:
+  - port: airflow-ui
+    path: /metrics
+    interval: 30s
