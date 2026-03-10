@@ -19,11 +19,19 @@ minikube addons enable metrics-server
 
 The easiest way to launch the entire infrastructure:
 
+First, copy the example env file and fill in your credentials:
+```bash
+cp .env.example .env
+# Edit .env with your passwords and settings
+```
+
+Then run:
 ```bash
 ./start_infra.sh
 ```
 
 This script will automatically:
+- Load credentials from `.env` and create Kubernetes secrets
 - Create necessary namespaces (airflow, datalake, monitoring)
 - Add required Helm repositories
 - Install PostgreSQL
@@ -42,6 +50,45 @@ To stop the infrastructure:
 ## Manual Setup (Step by Step)
 
 If you prefer to install components manually, follow these steps:
+
+### 0. Set Up Credentials
+
+Copy the example env file and fill in your credentials:
+```bash
+cp .env.example .env
+# Edit .env with your passwords and settings
+source .env
+```
+
+Create the Kubernetes secrets that the Helm charts depend on:
+```bash
+kubectl create secret generic postgres-credentials \
+  --from-literal=postgres-password="${POSTGRES_ADMIN_PASSWORD}" \
+  --from-literal=airflow-db-user="${AIRFLOW_DB_USER}" \
+  --from-literal=airflow-password="${AIRFLOW_DB_PASSWORD}" \
+  -n datalake
+
+kubectl create secret generic pgadmin-credentials \
+  --from-literal=password="${PGADMIN_PASSWORD}" \
+  -n datalake
+
+kubectl create secret generic grafana-admin-credentials \
+  --from-literal=admin-user="${GRAFANA_ADMIN_USER}" \
+  --from-literal=admin-password="${GRAFANA_ADMIN_PASSWORD}" \
+  -n monitoring
+
+kubectl create secret generic grafana-datasource-credentials \
+  --from-literal=POSTGRES_ADMIN_PASSWORD="${POSTGRES_ADMIN_PASSWORD}" \
+  -n monitoring
+
+kubectl create secret generic airflow-metadata-credentials \
+  --from-literal=connection="postgresql+psycopg2://${AIRFLOW_DB_USER}:${AIRFLOW_DB_PASSWORD}@postgres-postgresql.datalake.svc.cluster.local:5432/airflow" \
+  -n airflow
+
+kubectl create secret generic airflow-result-backend-credentials \
+  --from-literal=connection="db+postgresql://${AIRFLOW_DB_USER}:${AIRFLOW_DB_PASSWORD}@postgres-postgresql.datalake.svc.cluster.local:5432/airflow" \
+  -n airflow
+```
 
 ### 1. Create Namespaces
 
@@ -112,15 +159,6 @@ kubectl apply -f servicemonitors.yaml
 
 ### 8. Install Grafana
 
-First, create the admin credentials secret:
-```bash
-kubectl create secret generic grafana-admin-credentials \
-  --from-literal=admin-user=admin \
-  --from-literal=admin-password=Gr@f@n@Admin123 \
-  -n monitoring
-```
-
-Then install Grafana:
 ```bash
 helm install grafana grafana/grafana \
   --values grafana-values.yaml \
@@ -129,7 +167,7 @@ helm install grafana grafana/grafana \
 
 Grafana is installed separately from Prometheus for better separation of concerns and independent lifecycle management.
 
-**Note:** Admin credentials are stored in a Kubernetes secret for security, not in the values file.
+**Note:** All credentials are sourced from your `.env` file and stored in Kubernetes secrets (created in step 0) — no passwords are hardcoded in config files or Git.
 
 ## Accessing the Web Interfaces
 
@@ -155,9 +193,9 @@ kubectl port-forward svc/pgadmin-pgadmin4 5050:80 --namespace datalake
 
 Then access the web interface at: http://localhost:5050
 
-**Default credentials:**
-- Email: `admin@admin.com`
-- Password: `admin`
+**Credentials:**
+- Email: `admin@localhost.io`
+- Password: the `PGADMIN_PASSWORD` you set in `.env`
 
 ### Grafana (Monitoring Dashboards)
 
@@ -170,7 +208,11 @@ Then access at: http://localhost:3000
 
 **Credentials:**
 - Username: `admin`
-- Password: `Gr@f@n@Admin123`
+- Password: retrieve it with:
+```bash
+kubectl get secret grafana-admin-credentials -n monitoring \
+  -o jsonpath='{.data.admin-password}' | base64 -d && echo
+```
 
 Grafana comes pre-configured with:
 - **Prometheus** datasource for metrics
@@ -226,29 +268,33 @@ minikube stop
 
 **Login:** `postgres`
 
-You can retrieve the password by running:
+You can retrieve the password from the Kubernetes secret:
 ```bash
-kubectl get secret postgres-postgresql -n datalake -o jsonpath='{.data.postgres-password}' | base64 -d && echo
+kubectl get secret postgres-credentials -n datalake -o jsonpath='{.data.postgres-password}' | base64 -d && echo
 ```
 
-The password is defined in the Helm chart, but if it gets out of sync, use this command to reset it:
+If the password in the running PostgreSQL instance gets out of sync with the secret, reset it to match your `.env`:
 ```bash
-kubectl exec -it postgres-postgresql-0 -n datalake -- psql -U postgres -c "ALTER USER postgres WITH PASSWORD 'postgresadmin';" 2>&1 || echo "Password change failed, trying with current password..."
+kubectl exec -it postgres-postgresql-0 -n datalake -- psql -U postgres -c "ALTER USER postgres WITH PASSWORD '${POSTGRES_ADMIN_PASSWORD}';"
 ```
-
-**Default password:** `postgresadmin`
 
 ### Connect to PostgreSQL from pgAdmin
 
+Two servers are pre-loaded in pgAdmin. To connect:
+
 1. Access pgAdmin at http://localhost:5050
-2. Login with credentials above
-3. Right-click "Servers" → "Register" → "Server"
-4. General tab: Name = `MD1 PostgreSQL`
-5. Connection tab:
+2. Login with credentials from your `.env`
+3. Click on a pre-loaded server (e.g. "PostgreSQL Admin (superuser)")
+4. Enter the password when prompted (your `POSTGRES_ADMIN_PASSWORD` from `.env`)
+
+Or register a server manually:
+1. Right-click "Servers" → "Register" → "Server"
+2. General tab: Name = `MD1 PostgreSQL`
+3. Connection tab:
    - Host: `postgres-postgresql.datalake.svc.cluster.local`
    - Port: `5432`
    - Username: `postgres`
-   - Password: `postgresadmin`
+   - Password: your `POSTGRES_ADMIN_PASSWORD` from `.env`
 
 ## Advanced Configuration
 

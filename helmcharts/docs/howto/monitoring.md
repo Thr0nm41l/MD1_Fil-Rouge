@@ -16,15 +16,30 @@ This document explains how to configure and use Prometheus and Grafana to monito
 
 ### Quick Start Guides
 
-- **[Prometheus Quick Start](prometheus-quickstart.md)** - Get started with metrics collection
-- **[Grafana Quick Start](grafana-quickstart.md)** - Create dashboards and visualizations
+- **[Prometheus Quick Start](../stacks/prometheus-quickstart.md)** - Get started with metrics collection
+- **[Grafana Quick Start](../stacks/grafana-quickstart.md)** - Create dashboards and visualizations
 - **[Grafana PostgreSQL Setup](grafana-postgresql-setup.md)** - Connect to your database
 
 ## Installation
 
 Prometheus and Grafana installation is automatic when running `start_infra.sh`.
 
-To install manually:
+To install manually, first ensure your `.env` file is set up and source it, then create the required secrets:
+
+```bash
+source .env
+
+kubectl create secret generic grafana-admin-credentials \
+  --from-literal=admin-user="${GRAFANA_ADMIN_USER}" \
+  --from-literal=admin-password="${GRAFANA_ADMIN_PASSWORD}" \
+  -n monitoring
+
+kubectl create secret generic grafana-datasource-credentials \
+  --from-literal=POSTGRES_ADMIN_PASSWORD="${POSTGRES_ADMIN_PASSWORD}" \
+  -n monitoring
+```
+
+Then install the charts:
 
 ```bash
 # Add Helm repos
@@ -65,15 +80,19 @@ kubectl port-forward svc/grafana 3000:80 --namespace monitoring
 
 Then access: http://localhost:3000
 
-**Default credentials:**
+**Credentials:**
 - Username: `admin`
-- Password: `Gr@f@n@Admin123`
+- Password: retrieve it with:
+```bash
+kubectl get secret grafana-admin-credentials -n monitoring \
+  -o jsonpath='{.data.admin-password}' | base64 -d && echo
+```
 
 **Pre-configured datasources:**
 - Prometheus (metrics)
 - PostgreSQL (application data)
 
-See [grafana-quickstart.md](grafana-quickstart.md) for detailed usage.
+See [grafana-quickstart.md](../stacks/grafana-quickstart.md) for detailed usage.
 
 ### Prometheus
 
@@ -228,7 +247,7 @@ prometheus:
 Prometheus and Grafana data is persisted via PersistentVolumeClaims (PVC):
 
 - **Prometheus**: 10Gi
-- **Grafana**: 5Gi
+- **Grafana**: 2Gi
 - **AlertManager**: 2Gi
 
 To check volumes:

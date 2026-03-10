@@ -7,7 +7,11 @@ Grafana can connect to your PostgreSQL database to visualize application data al
 ### Via Grafana UI
 
 1. Access Grafana: http://localhost:3000
-2. Login with `admin` / `Gr@f@n@Admin123`
+2. Login with `admin` and the password from:
+   ```bash
+   kubectl get secret grafana-admin-credentials -n monitoring \
+     -o jsonpath='{.data.admin-password}' | base64 -d && echo
+   ```
 3. Go to **Configuration** → **Data Sources**
 4. Click **Add data source**
 5. Select **PostgreSQL**
@@ -16,36 +20,30 @@ Grafana can connect to your PostgreSQL database to visualize application data al
    - **Host**: `postgres-postgresql.datalake.svc.cluster.local:5432`
    - **Database**: `postgres` (or your database name)
    - **User**: `postgres`
-   - **Password**: `postgresadmin`
+   - **Password**: your `POSTGRES_ADMIN_PASSWORD` from `.env`
    - **SSL Mode**: `disable`
    - **Version**: Select your PostgreSQL version
 7. Click **Save & Test**
 
 ### Via Configuration (Advanced)
 
-You can also pre-configure PostgreSQL datasource in `prometheus-values.yaml`:
+The PostgreSQL datasource is already pre-configured in `grafana-values.yaml`. The password is injected at runtime from the `grafana-datasource-credentials` Kubernetes secret (created by `start_infra.sh` from your `.env`):
 
 ```yaml
-grafana:
-  datasources:
-    datasources.yaml:
-      apiVersion: 1
-      datasources:
-      - name: Prometheus
-        type: prometheus
-        url: http://prometheus-kube-prometheus-prometheus:9090
-        access: proxy
-        isDefault: true
+datasources:
+  datasources.yaml:
+    apiVersion: 1
+    datasources:
       - name: PostgreSQL
         type: postgres
         url: postgres-postgresql.datalake.svc.cluster.local:5432
-        database: postgres
         user: postgres
         secureJsonData:
-          password: postgresadmin
+          password: "${POSTGRES_ADMIN_PASSWORD}"   # expanded from K8s secret at runtime
         jsonData:
+          database: airflow
           sslmode: disable
-          postgresVersion: 1300  # 13.0
+          postgresVersion: 1500
 ```
 
 ## Example Queries

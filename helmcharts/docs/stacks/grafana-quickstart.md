@@ -43,11 +43,11 @@ For large-scale production, Grafana Labs recommends the [Grafana Operator](https
 
 Admin credentials are stored in a **Kubernetes secret** (not in configuration files) for security:
 
-**The secret is created automatically** by `start_infra.sh`:
+**The secret is created automatically** by `start_infra.sh` from your `.env` file:
 ```bash
 kubectl create secret generic grafana-admin-credentials \
-  --from-literal=admin-user=admin \
-  --from-literal=admin-password=Gr@f@n@Admin123 \
+  --from-literal=admin-user="${GRAFANA_ADMIN_USER}" \
+  --from-literal=admin-password="${GRAFANA_ADMIN_PASSWORD}" \
   -n monitoring
 ```
 
@@ -57,7 +57,7 @@ kubectl create secret generic grafana-admin-credentials \
 - ✅ Easy password rotation
 - ✅ Auditable access
 
-**Retrieve the password:**
+**Retrieve the password at any time:**
 ```bash
 kubectl get secret grafana-admin-credentials -n monitoring \
   -o jsonpath='{.data.admin-password}' | base64 -d && echo
@@ -78,7 +78,11 @@ Open your browser and go to: http://localhost:3000
 
 **Login credentials:**
 - Username: `admin`
-- Password: `Gr@f@n@Admin123`
+- Password: retrieve it with:
+```bash
+kubectl get secret grafana-admin-credentials -n monitoring \
+  -o jsonpath='{.data.admin-password}' | base64 -d && echo
+```
 
 ### 3. Verify Datasources
 
