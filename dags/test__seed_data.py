@@ -608,20 +608,17 @@ def run_aggregations(cur) -> None:
 # =============================================================
 
 def main() -> None:
-    # args = parse_args()
-    # log(f"Connecting to {args.user}@{args.host}:{args.port}/{args.db}...")
+    args = dag.params
+    log(f"Connecting to {args['user']}@{args['host']}:{args['port']}/{args['db']}...")
 
-    # conn = psycopg2.connect(
-    #     host=args.host,
-    #     port=args.port,
-    #     dbname=args.db,
-    #     user=args.user,
-    #     password=args.password,
-    # )
-    # conn.autocommit = False
-
-    hook = PostgresHook(postgres_conn_id="EcotrackDB")
-    conn = hook.get_conn()
+    conn = psycopg2.connect(
+        host=args['host'],
+        port=args['port'],
+        dbname=args['db'],
+        user=args['user'],
+        password=args['password'],
+    )
+    conn.autocommit = False
 
     try:
         with conn.cursor() as cur:
@@ -638,14 +635,17 @@ def main() -> None:
             containers = seed_containers(cur, zone_ids)
             seed_devices(cur, containers)
 
-            seed_fill_history(cur, containers)
-            seed_collections(cur, containers, users)
+            if not dag.params["skip_history"]:
+                seed_fill_history(cur, containers)
+                seed_collections(cur, containers, users)
 
             # ── Phase 2: restore triggers for event-driven inserts ────────────
             # signalement_award_points trigger must fire to credit user_points.
             cur.execute("SET session_replication_role = 'origin'")
-            seed_signalements(cur, containers, users)
-            run_aggregations(cur)
+            
+            if not dag.params["skip_history"]:
+                seed_signalements(cur, containers, users)
+                run_aggregations(cur)
 
         conn.commit()
         log("Seed complete.")
@@ -674,6 +674,18 @@ with DAG (
     doc_md=__doc__,
     catchup=False,
     tags=["test"],
+    params={
+        "host": Param(default="localhost", type="string", description="PostgreSQL host"),
+        "port": Param(default=5432, type="integer", description="PostgreSQL port"),
+        "db": Param(default="Ecotrack", type="string", description="Database name"),
+        "user": Param(default="postgres", type="string", description="PostgreSQL user"),
+        "password": Param(default="", type="string", description="PostgreSQL password"),
+        "skip_history": Param(
+            default=False,
+            type="boolean",
+            description="Skip fill_history generation (fast schema test)",
+        )
+    },
 ) as dag:
 
     #Empty start task
@@ -686,7 +698,7 @@ with DAG (
     # Define the task
     seed_data_task = PythonOperator(
         task_id="seed_data",
-        task_display_name="Print Hello",
+        task_display_name="Seed Data",
         python_callable=main,
         dag=dag,
     )
