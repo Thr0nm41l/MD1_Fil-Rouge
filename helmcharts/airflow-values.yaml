@@ -1,5 +1,9 @@
 executor: CeleryExecutor
 
+env:
+  - name: _PIP_ADDITIONAL_REQUIREMENTS
+    value: "faker"
+
 data:
   metadataSecretName: airflow-metadata-credentials           # created by start_infra.sh from .env
   resultBackendSecretName: airflow-result-backend-credentials  # created by start_infra.sh from .env
@@ -63,7 +67,7 @@ dags:
   gitSync:
     enabled: true
     repo: https://github.com/Thr0nm41l/MD1_Fil-Rouge.git
-    branch: main
+    branch: feature/serviceAPI
     rev: HEAD
     subPath: dags
     wait: 30
