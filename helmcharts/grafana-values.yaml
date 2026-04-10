@@ -17,6 +17,16 @@ extraEnvFrom:
   - secretRef:
       name: grafana-datasource-credentials   # created by start_infra.sh from .env
 
+# Minikube specific: avoid initChownData which fails with "operation not permitted" on Minikube's hostPath volumes
+initChownData:
+  enabled: false
+
+# The UID/GID (472) is the default for the official Grafana image, ensuring proper permissions without needing to change ownership of mounted volumes.
+securityContext:
+  runAsUser: 472
+  runAsGroup: 472
+  fsGroup: 472
+
 persistence:
   enabled: true
   size: 2Gi

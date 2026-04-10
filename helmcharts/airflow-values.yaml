@@ -1,30 +1,42 @@
 executor: CeleryExecutor
 
 data:
-  brokerUrl: redis://redis-master.datalake.svc.cluster.local:6379/0
   metadataSecretName: airflow-metadata-credentials           # created by start_infra.sh from .env
   resultBackendSecretName: airflow-result-backend-credentials  # created by start_infra.sh from .env
 
-# extraEnvFrom:
-#   - secretRef:
-#       name: airflow-variables
-#   - secretRef:
-#       name: airflow-connections
-
 config:
-  # core:
-  #   load_examples: "False"
-  #   hostname_callable: airflow.utils.net.get_hostname
-  # logging:
-  #   remote_logging: "True"
   celery:
     worker_concurrency: 4
 
 postgresql:
-  enabled: false
+  enabled: true
+  replicas: 1
+  auth:
+    username: airflow
+    database: airflow
+    existingSecret: airflow-postgres-credentials   # created by start_infra.sh; key: postgresql-password
+  resources:
+    requests:
+      cpu: "250m"
+      memory: "256Mi"
+    limits:
+      cpu: "500m"
+      memory: "512Mi"
+  persistence:
+    enabled: true
+    size: 3Gi
 
 redis:
-  enabled: false   # on utilise celui qu'on a déjà déployé
+  enabled: true
+  persistence:
+    enabled: false
+  resources:
+    requests:
+      cpu: "100m"
+      memory: "256Mi"
+    limits:
+      cpu: "500m"
+      memory: "512Mi"
 
 webserver:
   replicas: 1
@@ -43,7 +55,6 @@ workers:
     limits:
       cpu: "1"
       memory: "2Gi"
-
 
 triggerer:
   enabled: true

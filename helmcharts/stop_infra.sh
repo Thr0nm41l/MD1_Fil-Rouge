@@ -1,6 +1,6 @@
 #!/bin/bash
 
-stacknumber=6
+stacknumber=5
 stopedstacknumber=0
 
 # Kill any running port-forward processes
@@ -12,13 +12,6 @@ echo "Port-forwards stopped." >&2
 helm uninstall airflow -n airflow
 if [ $? -ne 0 ]; then
   echo "Failed to uninstall Airflow"
-  else
-    stopedstacknumber=$((stopedstacknumber + 1))
-fi
-
-helm uninstall redis -n datalake
-if [ $? -ne 0 ]; then
-  echo "Failed to uninstall Redis"
   else
     stopedstacknumber=$((stopedstacknumber + 1))
 fi
