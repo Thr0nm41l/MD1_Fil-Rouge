@@ -92,13 +92,21 @@ kubectl create secret generic grafana-datasource-credentials \
   --from-literal=POSTGRES_ADMIN_PASSWORD="${POSTGRES_ADMIN_PASSWORD}" \
   -n monitoring --dry-run=client -o yaml | kubectl apply -f -
 
-# Used by Airflow to connect to the metadata database and result backend
+# Used by the bundled Bitnami PostgreSQL subchart to initialize the airflow user password
+# postgres-password: read by the PostgreSQL container
+# password: read by the Airflow migration job
+kubectl create secret generic airflow-postgres-credentials \
+  --from-literal=postgres-password="${AIRFLOW_DB_PASSWORD}" \
+  --from-literal=password="${AIRFLOW_DB_PASSWORD}" \
+  -n airflow --dry-run=client -o yaml | kubectl apply -f -
+
+# Used by Airflow to connect to its dedicated bundled PostgreSQL (airflow-postgresql.airflow)
 kubectl create secret generic airflow-metadata-credentials \
-  --from-literal=connection="postgresql+psycopg2://${AIRFLOW_DB_USER}:${AIRFLOW_DB_PASSWORD}@postgres-postgresql.datalake.svc.cluster.local:5432/airflow" \
+  --from-literal=connection="postgresql+psycopg2://${AIRFLOW_DB_USER}:${AIRFLOW_DB_PASSWORD}@airflow-postgresql.airflow.svc.cluster.local:5432/airflow" \
   -n airflow --dry-run=client -o yaml | kubectl apply -f -
 
 kubectl create secret generic airflow-result-backend-credentials \
-  --from-literal=connection="db+postgresql://${AIRFLOW_DB_USER}:${AIRFLOW_DB_PASSWORD}@postgres-postgresql.datalake.svc.cluster.local:5432/airflow" \
+  --from-literal=connection="db+postgresql://${AIRFLOW_DB_USER}:${AIRFLOW_DB_PASSWORD}@airflow-postgresql.airflow.svc.cluster.local:5432/airflow" \
   -n airflow --dry-run=client -o yaml | kubectl apply -f -
 
 echo "Kubernetes secrets created." >&2
@@ -138,20 +146,7 @@ else
   echo "PgAdmin installed successfully." >&2
 fi
 
-# Install Redis
-helm install redis bitnami/redis --values redis-values.yaml -n datalake
-if [ $? -ne 0 ]; then
-  echo "Failed to install Redis" >&2
-  exit 1
-else 
-  echo "Redis installed successfully." >&2
-fi
-
-echo "Waiting for Redis pod to be ready..." >&2
-kubectl wait --for=condition=ready pod -l app.kubernetes.io/name=redis -n datalake --timeout=120s
-echo "Redis pod is ready." >&2
-
-# Install Airflow
+# Install Airflow (Redis and PostgreSQL are bundled as subcharts)
 helm install airflow apache-airflow/airflow --values airflow-values.yaml --timeout 15m -n airflow
 if [ $? -ne 0 ]; then
   echo "Failed to install Airflow" >&2
