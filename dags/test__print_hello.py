@@ -7,12 +7,12 @@
 ## Schedule:
 None
 """
+
 from airflow import DAG
-from airflow.operators.python import PythonOperator
-from airflow.operators.empty import EmptyOperator
-from airflow.decorators import task
-from airflow.models.param import Param
-from airflow.utils.trigger_rule import TriggerRule
+from airflow.providers.standard.operators.python import PythonOperator
+from airflow.providers.standard.operators.empty import EmptyOperator
+from airflow.sdk import task, Param
+from airflow.task.trigger_rule import TriggerRule
 from datetime import datetime, timedelta
 from zoneinfo import ZoneInfo
 
