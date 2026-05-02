@@ -27,9 +27,7 @@ from datetime import datetime, timedelta
 from zoneinfo import ZoneInfo
 
 # DAG specific imports
-import argparse
 import random
-import sys
 from datetime import datetime, timedelta, time as dtime
 from typing import List, Tuple
 from airflow.providers.postgres.hooks.postgres import PostgresHook
@@ -38,6 +36,8 @@ import bcrypt
 import psycopg2
 import psycopg2.extras
 from faker import Faker
+
+fake = Faker("fr_FR")
 
 # =============================================================
 # Default arguments for the DAG
@@ -585,38 +585,16 @@ def run_aggregations(cur) -> None:
 
     log("  → aggregated_hourly_stats and aggregated_daily_stats populated")
 
-
-# ── CLI ───────────────────────────────────────────────────────────────────────
-
-# def parse_args() -> argparse.Namespace:
-#     p = argparse.ArgumentParser(description="ECOTRACK seed script")
-#     p.add_argument("--host",         default="localhost",  help="PostgreSQL host")
-#     p.add_argument("--port",         default=5432, type=int)
-#     p.add_argument("--db",           default="Ecotrack",   help="Database name")
-#     p.add_argument("--user",         default="postgres")
-#     p.add_argument("--password",     default="",           help="PostgreSQL password")
-#     p.add_argument(
-#         "--skip-history",
-#         action="store_true",
-#         help="Skip fill_history generation (fast schema test)",
-#     )
-#     return p.parse_args()
-
 # =============================================================
 # Tasks functions
 # =============================================================
 
-def main() -> None:
-    args = dag.params
-    log(f"Connecting to {args['user']}@{args['host']}:{args['port']}/{args['db']}...")
+def main(**context) -> None:
+    params = context["params"]
+    hook = PostgresHook(postgres_conn_id=params["conn_id"])
+    log(f"Connecting via Airflow connection '{params['conn_id']}'...")
 
-    conn = psycopg2.connect(
-        host=args['host'],
-        port=args['port'],
-        dbname=args['db'],
-        user=args['user'],
-        password=args['password'],
-    )
+    conn = hook.get_conn()
     conn.autocommit = False
 
     try:
@@ -634,15 +612,15 @@ def main() -> None:
             containers = seed_containers(cur, zone_ids)
             seed_devices(cur, containers)
 
-            if not dag.params["skip_history"]:
+            if not params["skip_history"]:
                 seed_fill_history(cur, containers)
                 seed_collections(cur, containers, users)
 
             # ── Phase 2: restore triggers for event-driven inserts ────────────
             # signalement_award_points trigger must fire to credit user_points.
             cur.execute("SET session_replication_role = 'origin'")
-            
-            if not dag.params["skip_history"]:
+
+            if not params["skip_history"]:
                 seed_signalements(cur, containers, users)
                 run_aggregations(cur)
 
@@ -665,25 +643,25 @@ def main() -> None:
 
 # Define the DAG
 with DAG (
-    dag_id="test__seed_data",
-    owner_links={"test": "https://url_de_la_documentation.io"},
+    dag_id="lasc__seed_data",
+    owner_links={"lasc": "https://url_de_la_documentation.io"},
     default_args=default_args,
     schedule=None,
     start_date=datetime(2025, 1, 21),
     doc_md=__doc__,
     catchup=False,
-    tags=["test"],
+    tags=["lasc", "ingestion"],
     params={
-        "host": Param(default="localhost", type="string", description="PostgreSQL host"),
-        "port": Param(default=5432, type="integer", description="PostgreSQL port"),
-        "db": Param(default="Ecotrack", type="string", description="Database name"),
-        "user": Param(default="postgres", type="string", description="PostgreSQL user"),
-        "password": Param(default="", type="string", description="PostgreSQL password"),
+        "conn_id": Param(
+            default="Ecotrack",
+            type="string",
+            description="Airflow connection ID (must be a PostgreSQL connection)",
+        ),
         "skip_history": Param(
             default=False,
             type="boolean",
             description="Skip fill_history generation (fast schema test)",
-        )
+        ),
     },
 ) as dag:
 
