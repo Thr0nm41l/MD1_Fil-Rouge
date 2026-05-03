@@ -46,7 +46,7 @@ fake = Faker("fr_FR")
 default_args = {
     "start_date": datetime(2024, 1, 21, tzinfo=ZoneInfo("Europe/Paris")),
     "depends_on_past": False,
-    "retries": 1,
+    "retries": 0,
     "retry_delay": timedelta(minutes=2),
     "max_active_runs": 1,
     "owner": "airflow",
@@ -345,11 +345,11 @@ def seed_containers(cur, zone_ids: List[int]) -> List[dict]:
         """
         INSERT INTO public.containers
             (location, type_id, zone_id, capacity_liters, fill_threshold_pct)
-        VALUES (ST_GeomFromEWKT(%s), %s, %s, %s, %s)
+        VALUES %s
         RETURNING key_container
         """,
         rows,
-        template="(%s, %s, %s, %s, %s)",
+        template="(ST_GeomFromEWKT(%s), %s, %s, %s, %s)",
         page_size=500,
     )
     for idx, (row,) in enumerate(cur.fetchall()):

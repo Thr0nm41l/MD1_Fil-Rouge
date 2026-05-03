@@ -28,7 +28,7 @@ from zoneinfo import ZoneInfo
 default_args = {
     "start_date": datetime(2024, 1, 21, tzinfo=ZoneInfo("Europe/Paris")),
     "depends_on_past": False,
-    "retries": 1,
+    "retries": 0,
     "retry_delay": timedelta(minutes=2),
     "max_active_runs": 1,
     "owner": "airflow",
