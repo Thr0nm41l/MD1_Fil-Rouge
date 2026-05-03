@@ -19,9 +19,9 @@ None
 
 # DAG base imports
 from airflow import DAG
-from airflow.providers.standard.operators.python import PythonOperator
+from airflow.providers.standard.operators.python import PythonOperator, ShortCircuitOperator
 from airflow.providers.standard.operators.empty import EmptyOperator
-from airflow.sdk import task, Param
+from airflow.sdk import Param
 from airflow.task.trigger_rule import TriggerRule
 from datetime import datetime, timedelta
 from zoneinfo import ZoneInfo
@@ -340,7 +340,7 @@ def seed_containers(cur, zone_ids: List[int]) -> List[dict]:
                 "capacity":  capacity,
             })
 
-    psycopg2.extras.execute_values(
+    results = psycopg2.extras.execute_values(
         cur,
         """
         INSERT INTO public.containers
@@ -351,8 +351,9 @@ def seed_containers(cur, zone_ids: List[int]) -> List[dict]:
         rows,
         template="(ST_GeomFromEWKT(%s), %s, %s, %s, %s)",
         page_size=500,
+        fetch=True,
     )
-    for idx, (row,) in enumerate(cur.fetchall()):
+    for idx, (row,) in enumerate(results):
         metadata[idx]["id"] = row
 
     log(f"  → {len(metadata)} containers")
@@ -586,63 +587,191 @@ def run_aggregations(cur) -> None:
     log("  → aggregated_hourly_stats and aggregated_daily_stats populated")
 
 # =============================================================
-# Tasks functions
+# Connection helpers
 # =============================================================
 
-def main(**context) -> None:
-    params = context["params"]
+def _get_conn(params: dict):
     hook = PostgresHook(postgres_conn_id=params["conn_id"])
-    log(f"Connecting via Airflow connection '{params['conn_id']}'...")
-
     conn = hook.get_conn()
     conn.autocommit = False
+    return conn
 
+
+def _set_bulk_mode(cur) -> None:
+    """Disable RLS and row triggers for bulk inserts — requires superuser connection."""
+    cur.execute("SET row_security = off")
+    cur.execute("SET session_replication_role = 'replica'")
+
+
+# =============================================================
+# Task callables — one per seeding function
+# =============================================================
+
+def task_seed_zones(**context) -> List[int]:
+    conn = _get_conn(context["params"])
     try:
         with conn.cursor() as cur:
-            # ── Phase 1: bulk inserts with RLS and triggers bypassed ──────────
-            cur.execute("SET row_security = off")
-            # session_replication_role = replica disables all non-constraint triggers.
-            # This prevents fill_history_update_container from firing 1.4M times.
-            cur.execute("SET session_replication_role = 'replica'")
-
-            zone_ids   = seed_zones(cur)
-            users      = seed_users(cur)
-            seed_roles(cur, users)
-            seed_teams(cur, zone_ids, users)
-            containers = seed_containers(cur, zone_ids)
-            seed_devices(cur, containers)
-
-            if not params["skip_history"]:
-                seed_fill_history(cur, containers)
-                seed_collections(cur, containers, users)
-
-            # ── Phase 2: restore triggers for event-driven inserts ────────────
-            # signalement_award_points trigger must fire to credit user_points.
-            cur.execute("SET session_replication_role = 'origin'")
-
-            if not params["skip_history"]:
-                seed_signalements(cur, containers, users)
-                run_aggregations(cur)
-
+            _set_bulk_mode(cur)
+            zone_ids = seed_zones(cur)
         conn.commit()
-        log("Seed complete.")
-        log(f"  Containers : {N_CONTAINERS}")
-        log(f"  Users      : {1 + N_MANAGERS + N_WORKERS + N_CITIZENS} (password: password123)")
-        log(f"  History    : {f'{DAYS_HISTORY} days'}")
-
-    except Exception as exc:
+        return zone_ids
+    except Exception:
         conn.rollback()
-        log(f"Error — rolling back: {exc}")
         raise
     finally:
         conn.close()
 
+
+def task_seed_users(**context) -> dict:
+    conn = _get_conn(context["params"])
+    try:
+        with conn.cursor() as cur:
+            _set_bulk_mode(cur)
+            users = seed_users(cur)
+        conn.commit()
+        return users
+    except Exception:
+        conn.rollback()
+        raise
+    finally:
+        conn.close()
+
+
+def task_seed_roles(**context) -> None:
+    users = context["ti"].xcom_pull(task_ids="seed_users")
+    conn = _get_conn(context["params"])
+    try:
+        with conn.cursor() as cur:
+            _set_bulk_mode(cur)
+            seed_roles(cur, users)
+        conn.commit()
+    except Exception:
+        conn.rollback()
+        raise
+    finally:
+        conn.close()
+
+
+def task_seed_teams(**context) -> None:
+    ti = context["ti"]
+    zone_ids = ti.xcom_pull(task_ids="seed_zones")
+    users    = ti.xcom_pull(task_ids="seed_users")
+    conn = _get_conn(context["params"])
+    try:
+        with conn.cursor() as cur:
+            _set_bulk_mode(cur)
+            seed_teams(cur, zone_ids, users)
+        conn.commit()
+    except Exception:
+        conn.rollback()
+        raise
+    finally:
+        conn.close()
+
+
+def task_seed_containers(**context) -> List[dict]:
+    zone_ids = context["ti"].xcom_pull(task_ids="seed_zones")
+    conn = _get_conn(context["params"])
+    try:
+        with conn.cursor() as cur:
+            _set_bulk_mode(cur)
+            containers = seed_containers(cur, zone_ids)
+        conn.commit()
+        return containers
+    except Exception:
+        conn.rollback()
+        raise
+    finally:
+        conn.close()
+
+
+def task_seed_devices(**context) -> None:
+    containers = context["ti"].xcom_pull(task_ids="seed_containers")
+    conn = _get_conn(context["params"])
+    try:
+        with conn.cursor() as cur:
+            _set_bulk_mode(cur)
+            seed_devices(cur, containers)
+        conn.commit()
+    except Exception:
+        conn.rollback()
+        raise
+    finally:
+        conn.close()
+
+
+def task_check_skip_history(**context) -> bool:
+    return not context["params"]["skip_history"]
+
+
+def task_seed_fill_history(**context) -> None:
+    containers = context["ti"].xcom_pull(task_ids="seed_containers")
+    conn = _get_conn(context["params"])
+    try:
+        with conn.cursor() as cur:
+            _set_bulk_mode(cur)
+            seed_fill_history(cur, containers)
+        conn.commit()
+    except Exception:
+        conn.rollback()
+        raise
+    finally:
+        conn.close()
+
+
+def task_seed_collections(**context) -> None:
+    ti = context["ti"]
+    containers = ti.xcom_pull(task_ids="seed_containers")
+    users      = ti.xcom_pull(task_ids="seed_users")
+    conn = _get_conn(context["params"])
+    try:
+        with conn.cursor() as cur:
+            _set_bulk_mode(cur)
+            seed_collections(cur, containers, users)
+        conn.commit()
+    except Exception:
+        conn.rollback()
+        raise
+    finally:
+        conn.close()
+
+
+def task_seed_signalements(**context) -> None:
+    ti = context["ti"]
+    containers = ti.xcom_pull(task_ids="seed_containers")
+    users      = ti.xcom_pull(task_ids="seed_users")
+    conn = _get_conn(context["params"])
+    try:
+        with conn.cursor() as cur:
+            # session_replication_role stays at 'origin' so signalement_award_points fires
+            cur.execute("SET row_security = off")
+            seed_signalements(cur, containers, users)
+        conn.commit()
+    except Exception:
+        conn.rollback()
+        raise
+    finally:
+        conn.close()
+
+
+def task_run_aggregations(**context) -> None:
+    conn = _get_conn(context["params"])
+    try:
+        with conn.cursor() as cur:
+            run_aggregations(cur)
+        conn.commit()
+    except Exception:
+        conn.rollback()
+        raise
+    finally:
+        conn.close()
+
+
 # =============================================================
-# Define the DAG and tasks
+# DAG definition
 # =============================================================
 
-# Define the DAG
-with DAG (
+with DAG(
     dag_id="lasc__seed_data",
     owner_links={"lasc": "https://url_de_la_documentation.io"},
     default_args=default_args,
@@ -665,28 +794,82 @@ with DAG (
     },
 ) as dag:
 
-    #Empty start task
-    start_task = EmptyOperator(
-        task_id="start",
-        task_display_name="Start",
-        dag=dag,
-    )
+    start_task = EmptyOperator(task_id="start", task_display_name="Start")
 
-    # Define the task
-    seed_data_task = PythonOperator(
-        task_id="seed_data",
-        task_display_name="Seed Data",
-        python_callable=main,
-        dag=dag,
+    seed_zones_task = PythonOperator(
+        task_id="seed_zones",
+        task_display_name="Seed Zones",
+        python_callable=task_seed_zones,
     )
-
-    # Empty end task
+    seed_users_task = PythonOperator(
+        task_id="seed_users",
+        task_display_name="Seed Users",
+        python_callable=task_seed_users,
+    )
+    seed_roles_task = PythonOperator(
+        task_id="seed_roles",
+        task_display_name="Seed Roles",
+        python_callable=task_seed_roles,
+    )
+    seed_teams_task = PythonOperator(
+        task_id="seed_teams",
+        task_display_name="Seed Teams",
+        python_callable=task_seed_teams,
+    )
+    seed_containers_task = PythonOperator(
+        task_id="seed_containers",
+        task_display_name="Seed Containers",
+        python_callable=task_seed_containers,
+    )
+    seed_devices_task = PythonOperator(
+        task_id="seed_devices",
+        task_display_name="Seed Devices",
+        python_callable=task_seed_devices,
+    )
+    check_skip_history_task = ShortCircuitOperator(
+        task_id="check_skip_history",
+        task_display_name="Skip history?",
+        python_callable=task_check_skip_history,
+        ignore_downstream_trigger_rules=True,
+    )
+    seed_fill_history_task = PythonOperator(
+        task_id="seed_fill_history",
+        task_display_name="Seed Fill History (~1.44M rows)",
+        python_callable=task_seed_fill_history,
+    )
+    seed_collections_task = PythonOperator(
+        task_id="seed_collections",
+        task_display_name="Seed Collections",
+        python_callable=task_seed_collections,
+    )
+    seed_signalements_task = PythonOperator(
+        task_id="seed_signalements",
+        task_display_name="Seed Signalements",
+        python_callable=task_seed_signalements,
+    )
+    run_aggregations_task = PythonOperator(
+        task_id="run_aggregations",
+        task_display_name="Run Aggregations",
+        python_callable=task_run_aggregations,
+    )
     end_task = EmptyOperator(
         task_id="end",
         task_display_name="End",
         trigger_rule=TriggerRule.ALL_DONE,
-        dag=dag,
     )
 
-# Workflow
-start_task >> seed_data_task >> end_task
+# Dependency graph
+start_task >> [seed_zones_task, seed_users_task]
+seed_users_task >> seed_roles_task
+[seed_zones_task, seed_users_task] >> seed_teams_task
+seed_zones_task >> seed_containers_task
+[seed_containers_task, seed_roles_task, seed_teams_task] >> seed_devices_task
+seed_devices_task >> check_skip_history_task
+(
+    check_skip_history_task
+    >> seed_fill_history_task
+    >> seed_collections_task
+    >> seed_signalements_task
+    >> run_aggregations_task
+    >> end_task
+)
