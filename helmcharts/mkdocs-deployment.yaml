@@ -1,0 +1,120 @@
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: documentation
+
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: mkdocs
+  namespace: documentation
+  labels:
+    app: mkdocs
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: mkdocs
+  template:
+    metadata:
+      labels:
+        app: mkdocs
+    spec:
+      initContainers:
+        # Clones the repo into /docs/repo before the mkdocs container starts.
+        # Uses a direct git clone — no symlinks, path is always /docs/repo/documentation/mkdocs.yaml
+        - name: git-init
+          image: alpine/git:latest
+          command:
+            - git
+            - clone
+            - --depth=1
+            - --branch=feature/MKDocs
+            - https://github.com/Thr0nm41l/MD1_Fil-Rouge.git
+            - /docs/repo
+          volumeMounts:
+            - name: docs
+              mountPath: /docs
+          resources:
+            requests:
+              cpu: "50m"
+              memory: "64Mi"
+            limits:
+              cpu: "100m"
+              memory: "128Mi"
+
+      containers:
+        # Serves the MkDocs Material site on port 8000
+        - name: mkdocs
+          image: squidfunk/mkdocs-material:latest
+          command:
+            - mkdocs
+            - serve
+            - --config-file
+            - /docs/repo/mkdocs.yaml
+            - --dev-addr
+            - 0.0.0.0:8000
+          ports:
+            - name: http
+              containerPort: 8000
+          volumeMounts:
+            - name: docs
+              mountPath: /docs
+          resources:
+            requests:
+              cpu: "100m"
+              memory: "128Mi"
+            limits:
+              cpu: "500m"
+              memory: "256Mi"
+          readinessProbe:
+            httpGet:
+              path: /
+              port: 8000
+            initialDelaySeconds: 10
+            periodSeconds: 10
+
+        # Pulls the latest changes from the branch every 60 s
+        - name: git-pull
+          image: alpine/git:latest
+          command:
+            - /bin/sh
+            - -c
+            - |
+              while true; do
+                git -C /docs/repo fetch origin feature/MKDocs
+                git -C /docs/repo reset --hard origin/feature/MKDocs
+                sleep 60
+              done
+          volumeMounts:
+            - name: docs
+              mountPath: /docs
+          resources:
+            requests:
+              cpu: "50m"
+              memory: "64Mi"
+            limits:
+              cpu: "100m"
+              memory: "128Mi"
+
+      volumes:
+        - name: docs
+          emptyDir: {}
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: mkdocs
+  namespace: documentation
+  labels:
+    app: mkdocs
+spec:
+  selector:
+    app: mkdocs
+  ports:
+    - name: http
+      port: 8000
+      targetPort: 8000

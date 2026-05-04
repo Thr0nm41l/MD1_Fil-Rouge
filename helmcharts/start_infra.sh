@@ -198,6 +198,19 @@ echo "Waiting for Grafana pod to be ready..." >&2
 kubectl wait --for=condition=ready pod -l app.kubernetes.io/name=grafana -n monitoring --timeout=300s
 echo "Grafana pod is ready." >&2
 
+# Deploy MkDocs documentation site
+kubectl apply -f mkdocs-deployment.yaml
+if [ $? -ne 0 ]; then
+  echo "Failed to deploy MkDocs" >&2
+  exit 1
+else
+  echo "MkDocs deployed successfully." >&2
+fi
+
+echo "Waiting for MkDocs pod to be ready..." >&2
+kubectl wait --for=condition=ready pod -l app=mkdocs -n documentation --timeout=120s
+echo "MkDocs pod is ready." >&2
+
 # Port-forward commands (uncomment to auto-start)
 # kubectl port-forward svc/airflow-api-server 8080:8080 --namespace airflow &
 # kubectl port-forward svc/pgadmin-pgadmin4 5050:80 --namespace datalake &
@@ -223,5 +236,9 @@ echo "" >&2
 echo "Prometheus (Metrics):" >&2
 echo "  kubectl port-forward svc/prometheus-kube-prometheus-prometheus 9090:9090 --namespace monitoring" >&2
 echo "  http://localhost:9090" >&2
+echo "" >&2
+echo "MkDocs (Documentation):" >&2
+echo "  kubectl port-forward svc/mkdocs 8081:8000 --namespace documentation" >&2
+echo "  http://localhost:8081" >&2
 echo "" >&2
 exit 0

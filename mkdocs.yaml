@@ -1,0 +1,38 @@
+site_name: Ecotrack Documentation
+site_description: Documentation for the Ecotrack project, covering infrastructure, pipelines, and best practices.
+site_author: Ecotrack Team
+
+theme:
+  name: material
+  palette:
+    scheme: slate
+    primary: indigo
+    accent: indigo
+  features:
+    - navigation.sections
+    - navigation.top
+    - search.highlight
+
+docs_dir: documentation
+
+nav:
+  - Home: index.md
+  - Dags:
+    - Data Seeding: dags/lasc__seed_data.md
+    - Clean XComs: dags/masc__clean_xcoms.md
+    - DAG Example: dags/test__print_hello.md
+    - Test Connection: dags/test_list_tables_from_connection.md
+  - Database:
+    - Architecture: database/setup_complete.md
+  - Helmcharts:
+    - Global Architecture: helmcharts/k8s-architecture.md
+    - Airflow: helmcharts/airflow.md
+    - Postgres: helmcharts/postgres.md
+    - PGAdmin: helmcharts/pgadmin.md
+    - Prometheus: helmcharts/prometheus.md
+    - Grafana: helmcharts/grafana.md
+  - How-to Guides:
+    - MkDocs: howto/mkdocs.md
+    - Create K8S Secret: howto/k8s-secrets-doc.md
+    - Monitoring with Prometheus: howto/monitoring.md
+    - Grafana Setup: howto/grafana-postgresql-setup.md

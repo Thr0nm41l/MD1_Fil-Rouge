@@ -1,6 +1,6 @@
 #!/bin/bash
 
-stacknumber=5
+stacknumber=6
 stopedstacknumber=0
 
 # Kill any running port-forward processes
@@ -8,6 +8,13 @@ echo "Stopping port-forwards..." >&2
 #pkill -f "kubectl port-forward.*airflow"
 #pkill -f "kubectl port-forward.*pgadmin"
 echo "Port-forwards stopped." >&2
+
+kubectl delete -f mkdocs-deployment.yaml 2>/dev/null
+if [ $? -ne 0 ]; then
+  echo "Failed to uninstall MkDocs"
+  else
+    stopedstacknumber=$((stopedstacknumber + 1))
+fi
 
 helm uninstall airflow -n airflow
 if [ $? -ne 0 ]; then
