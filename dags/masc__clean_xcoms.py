@@ -1,30 +1,30 @@
 """
-### DAG : test__print_hello.py
+### DAG : masc__clean_xcoms.py
 
 ## Tasks :
-- print_hello: Prints "hello" to the logs
+- clean_xcoms: Deletes all XCom entries from the Airflow metadata database
 
 ## Schedule:
-None
+None (manual trigger only)
 """
 
 from airflow import DAG
 from airflow.providers.standard.operators.python import PythonOperator
 from airflow.providers.standard.operators.empty import EmptyOperator
-from airflow.sdk import task, Param
 from airflow.task.trigger_rule import TriggerRule
+from airflow.models.xcom import XCom
+from airflow.utils.session import create_session
 from datetime import datetime, timedelta
 from zoneinfo import ZoneInfo
 
 # =============================================================
 # Default arguments for the DAG
 # =============================================================
+
 default_args = {
-    "start_date": datetime(2024, 1, 21, tzinfo=ZoneInfo("Europe/Paris")),
+    "start_date": datetime(2025, 1, 21, tzinfo=ZoneInfo("Europe/Paris")),
     "depends_on_past": False,
     "retries": 0,
-    "retry_delay": timedelta(minutes=2),
-    "max_active_runs": 1,
     "owner": "airflow",
 }
 
@@ -32,48 +32,41 @@ default_args = {
 # Task functions
 # =============================================================
 
-def print_hello():
-    """Task function that prints hello to the logs"""
-    print("Hello, I am a test DAG that prints 'hello' to the logs!")
+def clean_xcoms(**context) -> None:
+    with create_session() as session:
+        count = session.query(XCom).delete()
+    print(f"[INFO] Deleted {count} XCom entries.", flush=True)
 
 # =============================================================
 # Define the DAG and tasks
 # =============================================================
 
-# Define the DAG
-with DAG (
-    dag_id="test__print_hello",
-    owner_links={"test": "https://url_de_la_documentation.io"},
+with DAG(
+    dag_id="masc__clean_xcoms",
     default_args=default_args,
     schedule=None,
     start_date=datetime(2025, 1, 21),
     doc_md=__doc__,
     catchup=False,
-    tags=["test"],
+    tags=["masc", "maintenance"],
 ) as dag:
 
-    #Empty start task
     start_task = EmptyOperator(
-        task_id="start",
-        task_display_name="Start",
-        dag=dag,
+        task_id="start", 
+        task_display_name="Start"
     )
 
-    # Define the task
-    print_hello_task = PythonOperator(
-        task_id="print_hello",
-        task_display_name="Print Hello",
-        python_callable=print_hello,
-        dag=dag,
+    clean_xcoms_task = PythonOperator(
+        task_id="clean_xcoms",
+        task_display_name="Clean XComs",
+        python_callable=clean_xcoms,
     )
 
-    # Empty end task
     end_task = EmptyOperator(
         task_id="end",
         task_display_name="End",
         trigger_rule=TriggerRule.ALL_DONE,
-        dag=dag,
     )
 
 # Workflow
-start_task >> print_hello_task >> end_task
+start_task >> clean_xcoms_task >> end_task

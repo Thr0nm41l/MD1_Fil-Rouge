@@ -18,7 +18,7 @@ Grafana can connect to your PostgreSQL database to visualize application data al
 6. Configure:
    - **Name**: `MD1 PostgreSQL`
    - **Host**: `postgres-postgresql.datalake.svc.cluster.local:5432`
-   - **Database**: `postgres` (or your database name)
+   - **Database**: `airflow`
    - **User**: `postgres`
    - **Password**: your `POSTGRES_ADMIN_PASSWORD` from `.env`
    - **SSL Mode**: `disable`

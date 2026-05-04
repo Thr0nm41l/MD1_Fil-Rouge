@@ -12,6 +12,8 @@ source .env
 
 required_vars=(
   POSTGRES_ADMIN_PASSWORD AIRFLOW_DB_USER AIRFLOW_DB_PASSWORD
+  AIRFLOW_FERNET_KEY
+  AIRFLOW_API_KEY
   PGADMIN_EMAIL PGADMIN_PASSWORD
   GRAFANA_ADMIN_USER GRAFANA_ADMIN_PASSWORD
 )
@@ -109,6 +111,12 @@ kubectl create secret generic airflow-result-backend-credentials \
   --from-literal=connection="db+postgresql://${AIRFLOW_DB_USER}:${AIRFLOW_DB_PASSWORD}@airflow-postgresql.airflow.svc.cluster.local:5432/airflow" \
   -n airflow --dry-run=client -o yaml | kubectl apply -f -
 
+# Used by Airflow to encrypt/decrypt connection credentials in the metadata DB — must stay stable across restarts
+kubectl create secret generic airflow-fernet-key \
+  --from-literal=fernet-key="${AIRFLOW_FERNET_KEY}" \
+  -n airflow --dry-run=client -o yaml | kubectl apply -f -
+
+
 echo "Kubernetes secrets created." >&2
 echo "" >&2
 
@@ -147,7 +155,7 @@ else
 fi
 
 # Install Airflow (Redis and PostgreSQL are bundled as subcharts)
-helm install airflow apache-airflow/airflow --values airflow-values.yaml --timeout 15m -n airflow
+helm install airflow apache-airflow/airflow --values airflow-values.yaml --set apiSecretKey="${AIRFLOW_API_KEY}" --timeout 15m -n airflow
 if [ $? -ne 0 ]; then
   echo "Failed to install Airflow" >&2
   exit 1
@@ -156,7 +164,7 @@ else
 fi
 
 echo "Waiting for Airflow pods to be ready..." >&2
-kubectl wait --for=condition=ready pod -l component=webserver -n airflow --timeout=300s
+kubectl wait --for=condition=ready pod -l component=api-server -n airflow --timeout=300s
 echo "Airflow pods are ready." >&2
 
 # Install Prometheus

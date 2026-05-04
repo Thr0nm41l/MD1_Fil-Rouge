@@ -16,8 +16,6 @@ This document explains how to configure and use Prometheus and Grafana to monito
 
 ### Quick Start Guides
 
-- **[Prometheus Quick Start](../stacks/prometheus-quickstart.md)** - Get started with metrics collection
-- **[Grafana Quick Start](../stacks/grafana-quickstart.md)** - Create dashboards and visualizations
 - **[Grafana PostgreSQL Setup](grafana-postgresql-setup.md)** - Connect to your database
 
 ## Installation
@@ -92,7 +90,7 @@ kubectl get secret grafana-admin-credentials -n monitoring \
 - Prometheus (metrics)
 - PostgreSQL (application data)
 
-See [grafana-quickstart.md](../stacks/grafana-quickstart.md) for detailed usage.
+See [grafana-postgresql-setup.md](grafana-postgresql-setup.md) for detailed usage.
 
 ### Prometheus
 
@@ -232,7 +230,7 @@ kubectl apply -f custom-alerts.yaml
 
 ## Data Retention
 
-By default, Prometheus retains metrics for **15 days** (configurable in `prometheus-values.yaml`).
+By default, Prometheus retains metrics for **7 days** (configurable in `prometheus-values.yaml`).
 
 To modify retention:
 
@@ -246,7 +244,7 @@ prometheus:
 
 Prometheus and Grafana data is persisted via PersistentVolumeClaims (PVC):
 
-- **Prometheus**: 10Gi
+- **Prometheus**: 5Gi
 - **Grafana**: 2Gi
 - **AlertManager**: 2Gi
 

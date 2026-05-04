@@ -1,5 +1,13 @@
 executor: CeleryExecutor
 
+env:
+  - name: _PIP_ADDITIONAL_REQUIREMENTS
+    value: "faker bcrypt"
+  - name: AIRFLOW__CORE__TEST_CONNECTION
+    value: "Enabled"
+
+fernetKeySecretName: airflow-fernet-key                      # created by start_infra.sh from .env; key: fernet-key
+
 data:
   metadataSecretName: airflow-metadata-credentials           # created by start_infra.sh from .env
   resultBackendSecretName: airflow-result-backend-credentials  # created by start_infra.sh from .env
@@ -47,14 +55,15 @@ scheduler:
   replicas: 1
 
 workers:
-  replicas: 2
-  resources:
-    requests:
-      cpu: "250m"
-      memory: "512Mi"
-    limits:
-      cpu: "1"
-      memory: "2Gi"
+  celery:
+    replicas: 2
+    resources:
+      requests:
+        cpu: "250m"
+        memory: "512Mi"
+      limits:
+        cpu: "1"
+        memory: "2Gi"
 
 triggerer:
   enabled: true
@@ -63,7 +72,7 @@ dags:
   gitSync:
     enabled: true
     repo: https://github.com/Thr0nm41l/MD1_Fil-Rouge.git
-    branch: main
+    branch: feature/serviceAPI
     rev: HEAD
     subPath: dags
     wait: 30
