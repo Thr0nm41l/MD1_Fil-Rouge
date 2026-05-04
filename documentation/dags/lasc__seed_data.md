@@ -235,8 +235,6 @@ check_skip_history >> seed_fill_history >> seed_collections >> seed_signalements
 
 An Airflow connection named `Ecotrack` (or the value passed in `conn_id`) must exist before running this DAG. It must be of type **Postgres** and point to `postgres-postgresql.datalake.svc.cluster.local:5432`, database `airflow` (or the target schema's database).
 
-See the [Airflow PostgreSQL connection howto](../../helmcharts/docs/howto/airflow-postgres-connection.md) for setup instructions.
-
 ---
 
 ## Runtime Notes
