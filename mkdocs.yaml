@@ -19,6 +19,9 @@ nav:
   - Home: index.md
   - Dags:
     - Data Seeding: dags/lasc__seed_data.md
+    - Fill Level Lifecycle: dags/lasc__livesim_fill.md
+    - Report Lifecycle: dags/lasc__livesim_signalements.md
+    - Operations Lifecycle: dags/lasc__ops_containers.md
     - Clean XComs: dags/masc__clean_xcoms.md
     - DAG Example: dags/test__print_hello.md
     - Test Connection: dags/test_list_tables_from_connection.md

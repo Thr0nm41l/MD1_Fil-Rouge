@@ -62,6 +62,9 @@ init_namespace airflow
 # Create namespace for monitoring
 init_namespace monitoring
 
+# Create namespace for documentation
+init_namespace documentation
+
 echo "Namespaces are set up." >&2
 echo "" >&2
 
