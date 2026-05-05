@@ -7,10 +7,10 @@
 ## Data generaton:
 - 5 zones (Lyon districts) with GeoJSON polygons
 - 2 000 containers distributed across zones
-- 1 admin + 5 managers + 10 workers + 100 citizens
+- 1 admin + 5 managers + 10 workers + 100 citizens (skippable via skip_users)
 - IoT devices (one per container)
 - 30 days of fill_history  (~1 440 000 rows)
-- Collections, signalements, user points
+- Collections, signalements, user points (skipped when skip_users=True)
 - Hourly and daily aggregations
 
 ## Schedule:
@@ -700,8 +700,8 @@ def task_seed_devices(**context) -> None:
         conn.close()
 
 
-def task_check_skip_history(**context) -> bool:
-    return not context["params"]["skip_history"]
+def task_check_skip_users(**context) -> bool:
+    return not context["params"]["skip_users"]
 
 
 def task_seed_fill_history(**context) -> None:
@@ -723,6 +723,9 @@ def task_seed_collections(**context) -> None:
     ti = context["ti"]
     containers = ti.xcom_pull(task_ids="seed_containers")
     users      = ti.xcom_pull(task_ids="seed_users")
+    if users is None:
+        log("Skipping collections — no users seeded (skip_users=True)")
+        return
     conn = _get_conn(context["params"])
     try:
         with conn.cursor() as cur:
@@ -740,6 +743,9 @@ def task_seed_signalements(**context) -> None:
     ti = context["ti"]
     containers = ti.xcom_pull(task_ids="seed_containers")
     users      = ti.xcom_pull(task_ids="seed_users")
+    if users is None:
+        log("Skipping signalements — no users seeded (skip_users=True)")
+        return
     conn = _get_conn(context["params"])
     try:
         with conn.cursor() as cur:
@@ -786,10 +792,10 @@ with DAG(
             type="string",
             description="Airflow connection ID (must be a PostgreSQL connection)",
         ),
-        "skip_history": Param(
+        "skip_users": Param(
             default=False,
             type="boolean",
-            description="Skip fill_history generation (fast schema test)",
+            description="Skip user, role and team creation (containers/IoT/history still seeded)",
         ),
     },
 ) as dag:
@@ -826,10 +832,10 @@ with DAG(
         task_display_name="Seed Devices",
         python_callable=task_seed_devices,
     )
-    check_skip_history_task = ShortCircuitOperator(
-        task_id="check_skip_history",
-        task_display_name="Skip history?",
-        python_callable=task_check_skip_history,
+    check_skip_users_task = ShortCircuitOperator(
+        task_id="check_skip_users",
+        task_display_name="Skip users?",
+        python_callable=task_check_skip_users,
         ignore_downstream_trigger_rules=True,
     )
     seed_fill_history_task = PythonOperator(
@@ -859,14 +865,12 @@ with DAG(
     )
 
 # Dependency graph
-start_task >> [seed_zones_task, seed_users_task]
-seed_users_task >> seed_roles_task
+start_task >> [check_skip_users_task, seed_zones_task]
+check_skip_users_task >> seed_users_task >> seed_roles_task
 [seed_zones_task, seed_users_task] >> seed_teams_task
-seed_zones_task >> seed_containers_task
-[seed_containers_task, seed_roles_task, seed_teams_task] >> seed_devices_task
-seed_devices_task >> check_skip_history_task
+seed_zones_task >> seed_containers_task >> seed_devices_task
 (
-    check_skip_history_task
+    seed_devices_task
     >> seed_fill_history_task
     >> seed_collections_task
     >> seed_signalements_task

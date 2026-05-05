@@ -19,7 +19,7 @@ Populates the Ecotrack PostgreSQL database from scratch with a realistic, self-c
 | Parameter | Type | Default | Description |
 |---|---|---|---|
 | `conn_id` | string | `Ecotrack` | Airflow connection ID — must point to a PostgreSQL connection |
-| `skip_history` | boolean | `false` | When `true`, skips `seed_fill_history` (useful for fast schema validation runs) |
+| `skip_users` | boolean | `false` | When `true`, skips user, role and team creation; containers, IoT devices, fill history and aggregations still run |
 
 ---
 
@@ -33,8 +33,8 @@ Populates the Ecotrack PostgreSQL database from scratch with a realistic, self-c
 | Users | 116 (1 admin + 5 managers + 10 workers + 100 citizens) |
 | Teams | 5 (one per zone) |
 | Fill history rows | ~1 440 000 (30 days × 24 h × 2 000 containers) |
-| Collections | 500 |
-| Signalements | 200 |
+| Collections | 500 (skipped when `skip_users=true`) |
+| Signalements | 200 (skipped when `skip_users=true`) |
 
 All inserts use `ON CONFLICT DO NOTHING / DO UPDATE` — the DAG is safe to re-run on a database that already has data.
 
@@ -44,22 +44,23 @@ All inserts use `ON CONFLICT DO NOTHING / DO UPDATE` — the DAG is safe to re-r
 
 ```
 start
-  ├── seed_zones ──────────────────────────────┐
-  │                                            ▼
-  └── seed_users ──► seed_roles           seed_containers ──► seed_devices ──► check_skip_history
-           │                                                                          │
-           └──────────────────► seed_teams                                  (skips if skip_history=true)
-                                                                                      │
-                                                                             seed_fill_history
-                                                                                      │
-                                                                             seed_collections
-                                                                                      │
-                                                                             seed_signalements
-                                                                                      │
-                                                                             run_aggregations
-                                                                                      │
-                                                                                     end (ALL_DONE)
+  ├── check_skip_users ──► seed_users ──► seed_roles
+  │         │                   │
+  │    (skips if                └──────────────────► seed_teams
+  │   skip_users=true)
+  │
+  └── seed_zones ──► seed_containers ──► seed_devices ──► seed_fill_history
+                                                                  │
+                                                         seed_collections (*)
+                                                                  │
+                                                         seed_signalements (*)
+                                                                  │
+                                                          run_aggregations
+                                                                  │
+                                                             end (ALL_DONE)
 ```
+
+(*) Returns early without inserting if users were skipped.
 
 ---
 
@@ -67,6 +68,13 @@ start
 
 ### `start`
 Empty marker task. Entry point of the DAG.
+
+---
+
+### `check_skip_users`
+**Operator:** `ShortCircuitOperator`
+
+Returns `True` (continue) if `skip_users` param is `false`, `False` (short-circuit) otherwise. When short-circuited, the entire user branch (`seed_users`, `seed_roles`, `seed_teams`) is skipped. The container/IoT/history branch is unaffected. `end` still runs due to `TriggerRule.ALL_DONE`.
 
 ---
 
@@ -101,6 +109,8 @@ Inserts 116 users into `public.users`. All accounts receive the password `passwo
 | Worker | 10 | `worker{n}@ecotrack.fr` |
 | Citizen | 100 | Random (Faker `fr_FR`, collision-safe) |
 
+Skipped when `skip_users=true`.
+
 ---
 
 ### `seed_roles`
@@ -109,6 +119,8 @@ Inserts 116 users into `public.users`. All accounts receive the password `passwo
 
 Reads existing role definitions from `public.role` (seeded by the schema SQL), then bulk-inserts into `public.user_role` to assign each user their appropriate application role (`Admin`, `Manager`, `Worker`, `User`).
 
+Skipped when `skip_users=true`.
+
 ---
 
 ### `seed_teams`
@@ -116,6 +128,8 @@ Reads existing role definitions from `public.role` (seeded by the schema SQL), t
 **XCom input:** `seed_zones` → zone_ids, `seed_users` → users dict
 
 Creates one team per zone in `public.teams`, sets the zone's manager as `team_manager`, and assigns 2 workers per team (workers 0–1 → zone 0, workers 2–3 → zone 1, etc.) via `public.user_team`.
+
+Skipped when `skip_users=true`.
 
 ---
 
@@ -143,13 +157,6 @@ Attaches one IoT device to every container in `public.device`. Device attributes
 - Random firmware version (`x.y.z`)
 - Random battery level 30–100 %
 - `last_seen` within the last 2 hours
-
----
-
-### `check_skip_history`
-**Operator:** `ShortCircuitOperator`
-
-Returns `True` (continue) if `skip_history` param is `false`, `False` (short-circuit) otherwise. When short-circuited, all downstream tasks (`seed_fill_history` through `run_aggregations`) are skipped; `end` still runs due to `TriggerRule.ALL_DONE`.
 
 ---
 
@@ -189,6 +196,8 @@ Inserts 500 collection events into `public.collections`. Each event:
 - `fill_rate_before` 65–100 %, `fill_rate_after` 0–5 %
 - Volume collected = capacity × fill_before / 100
 
+Returns early without inserting if `seed_users` was skipped (`skip_users=true`).
+
 ---
 
 ### `seed_signalements`
@@ -200,6 +209,8 @@ Inserts 200 citizen reports into `public.signalements`, **one row at a time** (n
 Unlike earlier tasks, this task does **not** set `session_replication_role = 'replica'` — triggers are intentionally left active. Only `row_security = off` is set.
 
 Status distribution (weighted): `ouvert` 30 %, `en_traitement` 20 %, `resolu` 40 %, `ferme` 10 %. Resolved/closed reports also get a `resolved_at` timestamp 1–5 days after creation.
+
+Returns early without inserting if `seed_users` was skipped (`skip_users=true`).
 
 ---
 
@@ -213,20 +224,18 @@ Both procedures are idempotent (`INSERT … ON CONFLICT DO UPDATE`), so re-runni
 ---
 
 ### `end`
-Empty marker task. `TriggerRule.ALL_DONE` — runs regardless of whether `check_skip_history` short-circuited the pipeline.
+Empty marker task. `TriggerRule.ALL_DONE` — runs regardless of upstream skip state.
 
 ---
 
 ## Dependencies
 
 ```
-start >> [seed_zones, seed_users]
-seed_users >> seed_roles
+start >> [check_skip_users, seed_zones]
+check_skip_users >> seed_users >> seed_roles
 [seed_zones, seed_users] >> seed_teams
-seed_zones >> seed_containers
-[seed_containers, seed_roles, seed_teams] >> seed_devices
-seed_devices >> check_skip_history
-check_skip_history >> seed_fill_history >> seed_collections >> seed_signalements >> run_aggregations >> end
+seed_zones >> seed_containers >> seed_devices
+seed_devices >> seed_fill_history >> seed_collections >> seed_signalements >> run_aggregations >> end
 ```
 
 ---
@@ -240,6 +249,6 @@ An Airflow connection named `Ecotrack` (or the value passed in `conn_id`) must e
 ## Runtime Notes
 
 - **Expected duration:** 5–15 minutes depending on cluster resources (dominated by `seed_fill_history`)
-- **Fast mode:** trigger with `skip_history = true` — completes in under 1 minute
+- **Fast mode:** trigger with `skip_users = true` — skips user/role/team creation and completes without the user data overhead; containers, history and aggregations still run
 - **Idempotent:** all inserts use `ON CONFLICT` — safe to re-run, but history rows accumulate if the table is not truncated first
 - Bulk inserts run with `session_replication_role = 'replica'` to disable row triggers for performance; `seed_signalements` is the exception (triggers intentionally active)
