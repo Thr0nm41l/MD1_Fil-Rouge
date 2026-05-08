@@ -2,19 +2,17 @@
 ### DAG : masc__clean_xcoms.py
 
 ## Tasks :
-- clean_xcoms: Deletes all xcom entries from the Airflow metadata database
+- clean_xcoms: Deletes all xcom entries older than 7 days from the Airflow metadata database
 
 ## Schedule:
-None (manual trigger only)
+Weekly (every Monday at 9:00 AM UTC)
 """
 
 from airflow import DAG
-from airflow.providers.standard.operators.python import PythonOperator
+from airflow.providers.standard.operators.bash import BashOperator
 from airflow.providers.standard.operators.empty import EmptyOperator
 from airflow.task.trigger_rule import TriggerRule
-from airflow.sdk.execution_time.xcom import XCom
-from airflow.utils.session import create_session
-from datetime import datetime, timedelta
+from datetime import datetime
 from zoneinfo import ZoneInfo
 
 # =============================================================
@@ -29,22 +27,13 @@ default_args = {
 }
 
 # =============================================================
-# Task functions
-# =============================================================
-
-def clean_xcoms(**context) -> None:
-    with create_session() as session:
-        count = session.query(XCom).delete(synchronize_session=False)
-    print(f"[INFO] Deleted {count} xcom entries.", flush=True)
-
-# =============================================================
 # Define the DAG and tasks
 # =============================================================
 
 with DAG(
     dag_id="masc__clean_xcoms",
     default_args=default_args,
-    schedule=None,
+    schedule="0 9 * * 1",
     start_date=datetime(2025, 1, 21),
     doc_md=__doc__,
     catchup=False,
@@ -52,14 +41,17 @@ with DAG(
 ) as dag:
 
     start_task = EmptyOperator(
-        task_id="start", 
-        task_display_name="Start"
+        task_id="start",
+        task_display_name="Start",
     )
 
-    clean_xcoms_task = PythonOperator(
+    clean_xcoms_task = BashOperator(
         task_id="clean_xcoms",
         task_display_name="Clean xcoms",
-        python_callable=clean_xcoms,
+        bash_command=(
+            "airflow db clean --table xcom -y --skip-archive "
+            "--clean-before-timestamp '{{ macros.ds_add(ds, -7) }}T00:00:00+00:00'"
+        ),
     )
 
     end_task = EmptyOperator(
