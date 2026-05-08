@@ -72,7 +72,7 @@ dags:
   gitSync:
     enabled: true
     repo: https://github.com/Thr0nm41l/MD1_Fil-Rouge.git
-    branch: main
+    branch: fix/clean-xcom
     rev: HEAD
     subPath: dags
     wait: 30
