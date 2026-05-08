@@ -61,7 +61,7 @@ apiservice/
 | Foundation (pool, schemas, utils) | Pre-S3 | ✅ Done | [foundation.md](foundation.md) |
 | Phase 1 — Containers & Zones | S3–4 | ✅ Done | [phase1-containers-zones.md](phase1-containers-zones.md) |
 | Phase 2 — IoT History & Routes | S5–6 | ✅ Done | [phase2-history-routes.md](phase2-history-routes.md) |
-| Phase 3 — Analytics & Dashboard | S7–8 | ❌ Not started | [phase3-analytics.md](phase3-analytics.md) |
+| Phase 3 — Analytics & Dashboard | S7–8 | ✅ Done | [phase3-analytics.md](phase3-analytics.md) |
 | Phase 4 — Gamification, ML & Reports | S9–12 | ❌ Not started | [phase4-gamification-ml-reports.md](phase4-gamification-ml-reports.md) |
 
 ---
@@ -110,19 +110,19 @@ Interactive docs available at `http://localhost:8000/docs` once the server is ru
 | `GET` | `/routes/stats` | 2 | ✅ |
 | `GET` | `/routes/{id}` | 2 | ✅ |
 | `POST` | `/routes/{id}/export` | 2 | ✅ |
-| `GET` | `/analytics/kpis` | 3 | ❌ |
-| `GET` | `/analytics/volume-evolution` | 3 | ❌ |
-| `GET` | `/analytics/type-distribution` | 3 | ❌ |
-| `GET` | `/analytics/zone-collections` | 3 | ❌ |
-| `GET` | `/analytics/fill-distribution` | 3 | ❌ |
-| `GET` | `/analytics/fill-evolution` | 3 | ❌ |
-| `GET` | `/analytics/route-performance` | 3 | ❌ |
-| `GET` | `/analytics/incidents` | 3 | ❌ |
-| `GET` | `/analytics/heatmap` | 3 | ❌ |
-| `GET` | `/analytics/choropleth` | 3 | ❌ |
-| `GET` | `/analytics/costs-roi` | 3 | ❌ |
-| `GET` | `/dashboard/config` | 3 | ❌ |
-| `PUT` | `/dashboard/config` | 3 | ❌ |
+| `GET` | `/analytics/kpis` | 3 | ✅ |
+| `GET` | `/analytics/volume-evolution` | 3 | ✅ |
+| `GET` | `/analytics/type-distribution` | 3 | ✅ |
+| `GET` | `/analytics/zone-collections` | 3 | ✅ |
+| `GET` | `/analytics/fill-distribution` | 3 | ✅ |
+| `GET` | `/analytics/fill-evolution` | 3 | ✅ |
+| `GET` | `/analytics/route-performance` | 3 | ✅ |
+| `GET` | `/analytics/incidents` | 3 | ✅ |
+| `GET` | `/analytics/heatmap` | 3 | ✅ |
+| `GET` | `/analytics/choropleth` | 3 | ✅ |
+| `GET` | `/analytics/costs-roi` | 3 | ✅ |
+| `GET` | `/dashboard/config` | 3 | ✅ |
+| `PUT` | `/dashboard/config` | 3 | ✅ |
 | `GET` | `/leaderboard` | 4 | ❌ |
 | `GET` | `/leaderboard/weekly` | 4 | ❌ |
 | `GET` | `/leaderboard/monthly` | 4 | ❌ |

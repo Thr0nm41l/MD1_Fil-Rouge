@@ -2,7 +2,7 @@
 
 **Sprint:** S7–8
 **Epic refs:** E6 (A1–A10), E7 (DA3–DA5)
-**Status:** ❌ Not started
+**Status:** ✅ Done
 **Router files:** `routers/analytics.py`, `routers/dashboard.py`
 **Livrable:** L3 — 8 charts + heatmap + choropleth
 **Prerequisite:** Phase 2 complete, ≥ 30 days of `aggregated_daily_stats` data
@@ -24,7 +24,7 @@ All analytics endpoints accept a time window:
 ## Analytics
 
 ### `GET /analytics/kpis` — DA3
-**Status:** ❌
+**Status:** ✅
 
 Six KPI cards with current value and % variation vs the previous equivalent period.
 
@@ -45,7 +45,7 @@ Sources: `aggregated_daily_stats` (fill rates, overflows), `collections` (volume
 ---
 
 ### `GET /analytics/volume-evolution` — A1
-**Status:** ❌
+**Status:** ✅
 
 Time series of collected volume grouped by waste type — feeds the stacked area chart (Recharts).
 
@@ -62,7 +62,7 @@ Source: `collections` JOINed with `containers` and `container_type`.
 ---
 
 ### `GET /analytics/type-distribution` — A2
-**Status:** ❌
+**Status:** ✅
 
 Percentage and absolute count of containers per waste type — feeds the donut chart (Chart.js).
 
@@ -78,7 +78,7 @@ Percentage and absolute count of containers per waste type — feeds the donut c
 ---
 
 ### `GET /analytics/zone-collections` — A3
-**Status:** ❌
+**Status:** ✅
 
 Total collections (count and volume) per zone over the period, sorted by volume descending — feeds the horizontal bar chart (Chart.js).
 
@@ -93,7 +93,7 @@ Total collections (count and volume) per zone over the period, sorted by volume 
 ---
 
 ### `GET /analytics/fill-distribution` — A4
-**Status:** ❌
+**Status:** ✅
 
 Distribution of fill rates in 10 % buckets — feeds the histogram (Chart.js).
 
@@ -112,7 +112,7 @@ Source: `aggregated_daily_stats.avg_fill_rate` grouped into `width_bucket` inter
 ---
 
 ### `GET /analytics/fill-evolution` — A5
-**Status:** ❌
+**Status:** ✅
 
 Daily average fill rate across all active containers, with optional 7-day moving average — feeds the line chart (Recharts).
 
@@ -133,7 +133,7 @@ Source: `aggregated_daily_stats` averaged across all containers per day.
 ---
 
 ### `GET /analytics/route-performance` — A6
-**Status:** ❌
+**Status:** ✅
 
 One data point per route: distance vs volume collected — feeds the scatter plot (Recharts, bubble = container count).
 
@@ -150,7 +150,7 @@ Source: `routes` JOINed with `collections` and `route_steps`.
 ---
 
 ### `GET /analytics/incidents` — A7
-**Status:** ❌
+**Status:** ✅
 
 Chronological list of signalements and threshold-breach notifications — feeds the timeline chart (D3.js).
 
@@ -170,7 +170,7 @@ Chronological list of signalements and threshold-breach notifications — feeds 
 ---
 
 ### `GET /analytics/heatmap` — A8
-**Status:** ❌
+**Status:** ✅
 
 Measurement counts grouped by `(day_of_week × hour_of_day)` — feeds the Nivo/D3.js heatmap.
 
@@ -181,7 +181,7 @@ Delegates directly to `get_heatmap_data(p_from, p_to)` SQL function (same as `/h
 ---
 
 ### `GET /analytics/choropleth` — A9
-**Status:** ❌
+**Status:** ✅
 
 Per-zone density and average fill rate with polygon geometry — feeds the Leaflet choropleth map.
 
@@ -206,7 +206,7 @@ Requires zones to have polygon geometry set (Phase 1 prerequisite).
 ---
 
 ### `GET /analytics/costs-roi` — A10
-**Status:** ❌
+**Status:** ✅
 
 Cost and ROI analysis comparing actual vs theoretical unoptimized routes — feeds the mixed bar+line chart (Recharts).
 
@@ -230,7 +230,7 @@ Cost and ROI analysis comparing actual vs theoretical unoptimized routes — fee
 ## Dashboard
 
 ### `GET /dashboard/config` — DA4
-**Status:** ❌
+**Status:** ✅
 
 Returns the saved layout configuration for the authenticated user.
 
@@ -252,7 +252,7 @@ Requires `set_user_context(conn, user_id)` before querying (RLS on `dashboard_co
 ---
 
 ### `PUT /dashboard/config` — DA5
-**Status:** ❌
+**Status:** ✅
 
 Saves or updates the authenticated user's dashboard layout. Uses `INSERT … ON CONFLICT (user_id) DO UPDATE`.
 

@@ -141,19 +141,19 @@ kubectl port-forward svc/apiservice 8000:8000 -n datalake
 
 | Method | Endpoint | Epic ref | Status | Tables / Functions |
 |--------|----------|----------|--------|--------------------|
-| `GET` | `/analytics/kpis` | DA3 | ❌ | `aggregated_daily_stats`, `collections`, `routes` — 6 KPIs + % variation |
-| `GET` | `/analytics/volume-evolution` | A1 | ❌ | `collections` + `container_type` — stacked area series by waste type |
-| `GET` | `/analytics/type-distribution` | A2 | ❌ | `containers` + `container_type` — % and absolute counts |
-| `GET` | `/analytics/zone-collections` | A3 | ❌ | `collections` + `zones` — count/volume per zone |
-| `GET` | `/analytics/fill-distribution` | A4 | ❌ | `aggregated_daily_stats` — histogram bins by 10% |
-| `GET` | `/analytics/fill-evolution` | A5 | ❌ | `aggregated_daily_stats` — daily avg, optional 7-day moving avg |
-| `GET` | `/analytics/route-performance` | A6 | ❌ | `routes` + `collections` — scatter: distance vs volume |
-| `GET` | `/analytics/incidents` | A7 | ❌ | `signalements` + `notifications` — timeline by type |
-| `GET` | `/analytics/heatmap` | A8 | ❌ | `get_heatmap_data()` — `{day, hour, count}` matrix |
-| `GET` | `/analytics/choropleth` | A9 | ❌ | `get_choropleth_data()` — density + avg fill per zone with polygon |
-| `GET` | `/analytics/costs-roi` | A10 | ❌ | `routes` + `collections` + `aggregated_daily_stats` — costs, savings, CO₂ |
-| `GET` | `/dashboard/config` | DA4 | ❌ | `dashboard_config` — user layout JSONB |
-| `PUT` | `/dashboard/config` | DA5 | ❌ | UPSERT `dashboard_config` |
+| `GET` | `/analytics/kpis` | DA3 | ✅ | `aggregated_daily_stats`, `collections`, `routes` — 6 KPIs + % variation vs prev period |
+| `GET` | `/analytics/volume-evolution` | A1 | ✅ | `collections` + `container_type` — pivoted by type name in Python |
+| `GET` | `/analytics/type-distribution` | A2 | ✅ | `containers` + `container_type` — count + pct |
+| `GET` | `/analytics/zone-collections` | A3 | ✅ | `collections` + `zones` — count/volume per zone |
+| `GET` | `/analytics/fill-distribution` | A4 | ✅ | `aggregated_daily_stats` — `FLOOR(fill/10)*10` buckets |
+| `GET` | `/analytics/fill-evolution` | A5 | ✅ | `aggregated_daily_stats` — daily avg + optional 7-day moving avg in Python |
+| `GET` | `/analytics/route-performance` | A6 | ✅ | `routes` + `collections` + `route_steps` — scatter points |
+| `GET` | `/analytics/incidents` | A7 | ✅ | `signalements` UNION `notifications` — type filter, zone filter |
+| `GET` | `/analytics/heatmap` | A8 | ✅ | `get_heatmap_data()` — reuses `HeatmapPoint` from `schemas/history.py` |
+| `GET` | `/analytics/choropleth` | A9 | ✅ | `get_choropleth_data()` + `ST_AsGeoJSON` wrapper |
+| `GET` | `/analytics/costs-roi` | A10 | ✅ | `routes` monthly distance → cost/savings/CO₂ computed in Python |
+| `GET` | `/dashboard/config` | DA4 | ✅ | `dashboard_config` — returns `{}` layout if no config saved |
+| `PUT` | `/dashboard/config` | DA5 | ✅ | UPSERT `dashboard_config` on `user_id` unique constraint |
 
 ---
 
@@ -164,7 +164,7 @@ kubectl port-forward svc/apiservice 8000:8000 -n datalake
 
 | # | Prerequisite | Status |
 |---|-------------|--------|
-| 1 | All Phase 3 endpoints implemented and tested | ❌ Not started |
+| 1 | All Phase 3 endpoints implemented and tested | ✅ Done |
 | 2 | Gamification tables present | ✅ Defined in `setup_complete.sql` |
 | 3 | `badges` catalogue seeded (30 badges) | ✅ Seeded in `setup_complete.sql` |
 | 4 | `get_leaderboard()` DB function present | ✅ Defined in `setup_complete.sql` |
@@ -223,8 +223,8 @@ apiservice/
 │   ├── zones.py         # Phase 1 — ✅ implemented
 │   ├── history.py       # Phase 2 — ✅ implemented
 │   ├── routes.py        # Phase 2 — ✅ implemented
-│   ├── analytics.py     # Phase 3 — stub
-│   ├── dashboard.py     # Phase 3 — stub
+│   ├── analytics.py     # Phase 3 — ✅ implemented
+│   ├── dashboard.py     # Phase 3 — ✅ implemented
 │   ├── gamification.py  # Phase 4 — stub
 │   ├── ml.py            # Phase 4 — stub
 │   └── reports.py       # Phase 4 — stub
@@ -233,7 +233,9 @@ apiservice/
     ├── containers.py    # ContainerCreate/Update/Out, MeasureCreate/Out, ImportReport
     ├── zones.py         # ZoneCreate/Update/Out
     ├── history.py       # HistoryBucket, HeatmapPoint
-    └── routes.py        # RouteOut, RouteDetail, RouteStep, RouteStats
+    ├── routes.py        # RouteOut, RouteDetail, RouteStep, RouteStats
+    ├── analytics.py     # KpisResponse, FillEvolutionPoint, ChoroplethZone, etc.
+    └── dashboard.py     # DashboardConfig, DashboardConfigUpdate
 
 helmcharts/
 └── apiservice-deployment.yaml  # Deployment + Service in datalake namespace
