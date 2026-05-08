@@ -2,7 +2,7 @@
 ### DAG : masc__clean_xcoms.py
 
 ## Tasks :
-- clean_xcoms: Deletes all XCom entries from the Airflow metadata database
+- clean_xcoms: Deletes all xcom entries from the Airflow metadata database
 
 ## Schedule:
 None (manual trigger only)
@@ -12,7 +12,7 @@ from airflow import DAG
 from airflow.providers.standard.operators.python import PythonOperator
 from airflow.providers.standard.operators.empty import EmptyOperator
 from airflow.task.trigger_rule import TriggerRule
-from airflow.models.xcom import XCom
+from airflow.sdk.execution_time.xcom import XCom
 from airflow.utils.session import create_session
 from datetime import datetime, timedelta
 from zoneinfo import ZoneInfo
@@ -34,8 +34,8 @@ default_args = {
 
 def clean_xcoms(**context) -> None:
     with create_session() as session:
-        count = session.query(XCom).delete()
-    print(f"[INFO] Deleted {count} XCom entries.", flush=True)
+        count = session.query(XCom).delete(synchronize_session=False)
+    print(f"[INFO] Deleted {count} xcom entries.", flush=True)
 
 # =============================================================
 # Define the DAG and tasks
@@ -58,7 +58,7 @@ with DAG(
 
     clean_xcoms_task = PythonOperator(
         task_id="clean_xcoms",
-        task_display_name="Clean XComs",
+        task_display_name="Clean xcoms",
         python_callable=clean_xcoms,
     )
 
