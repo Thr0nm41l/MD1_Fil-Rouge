@@ -2,7 +2,7 @@
 
 **Sprint:** S5–6
 **Epic refs:** E4 (H5–H7), E3 (C7–C8), E8 (T2–T3, T6, T8)
-**Status:** ❌ Not started
+**Status:** ✅ Done
 **Router files:** `routers/history.py`, `routers/routes.py`
 **Prerequisite:** Phase 1 complete
 
@@ -17,7 +17,7 @@ reportlab==4.2.5           # for PDF route sheets
 ## History
 
 ### `GET /history/{container_id}` — H5
-**Status:** ❌
+**Status:** ✅
 
 Time series of fill measurements for one container. Supports three granularities backed by different tables.
 
@@ -44,7 +44,7 @@ Time series of fill measurements for one container. Supports three granularities
 ---
 
 ### `GET /history/heatmap-data` — H7
-**Status:** ❌
+**Status:** ✅
 
 Measurement counts grouped by `(day_of_week × hour_of_day)` — feeds the A8 heatmap chart. Delegates to the `get_heatmap_data(from, to)` SQL function.
 
@@ -61,7 +61,7 @@ Measurement counts grouped by `(day_of_week × hour_of_day)` — feeds the A8 he
 ## Containers (batch)
 
 ### `POST /containers/import` — C7
-**Status:** ❌
+**Status:** ✅
 
 Batch import of containers from a CSV or JSON file. Returns an import report.
 
@@ -88,7 +88,7 @@ Batch import of containers from a CSV or JSON file. Returns an import report.
 ---
 
 ### `GET /containers/export` — C8
-**Status:** ❌
+**Status:** ✅
 
 Exports all active containers as a downloadable file.
 
@@ -106,7 +106,7 @@ Exports all active containers as a downloadable file.
 ## Routes
 
 ### `GET /routes` — T2
-**Status:** ❌
+**Status:** ✅
 
 Paginated list of collection routes.
 
@@ -125,7 +125,7 @@ Paginated list of collection routes.
 ---
 
 ### `GET /routes/stats` — T8
-**Status:** ❌
+**Status:** ✅
 
 Global route performance KPIs over a date range.
 
@@ -148,7 +148,7 @@ Global route performance KPIs over a date range.
 ---
 
 ### `GET /routes/{id}` — T3
-**Status:** ❌
+**Status:** ✅
 
 Full route detail including ordered stops and GeoJSON path.
 
@@ -173,7 +173,7 @@ Full route detail including ordered stops and GeoJSON path.
 ---
 
 ### `POST /routes/{id}/export` — T6
-**Status:** ❌
+**Status:** ✅
 
 Generates and returns a route sheet for field agents as PDF or JSON.
 

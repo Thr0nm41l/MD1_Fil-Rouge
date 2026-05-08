@@ -1,9 +1,12 @@
+import csv
+import io
 import json
 from datetime import datetime, timedelta
 from typing import Any, List, Optional
 
 import psycopg2.extras
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, File, HTTPException, Query, UploadFile
+from fastapi.responses import StreamingResponse
 
 from db import get_db
 from schemas.common import PaginatedResponse
@@ -14,8 +17,10 @@ from schemas.containers import (
     ContainerStats,
     ContainerUpdate,
     HistoryPoint,
+    ImportReport,
     MeasureCreate,
     MeasureOut,
+    RowError,
 )
 from utils import geojson_collection, geojson_feature
 
@@ -134,6 +139,219 @@ def get_containers_map(conn=Depends(get_db)):
         for r in rows
     ]
     return geojson_collection(features)
+
+
+@router.get("/export")
+def export_containers(
+    fmt:     str           = Query("csv", alias="format", pattern="^(csv|geojson)$"),
+    zone_id: Optional[int] = Query(None),
+    conn=Depends(get_db),
+):
+    """Download active containers as CSV or GeoJSON."""
+    where_parts = ["c.is_active = true"]
+    params: dict[str, Any] = {}
+    if zone_id is not None:
+        where_parts.append("c.zone_id = %(zone_id)s")
+        params["zone_id"] = zone_id
+    where_sql = " AND ".join(where_parts)
+
+    if fmt == "geojson":
+        with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
+            cur.execute(
+                f"""
+                SELECT key_container, fill_rate, status, type_id, zone_id,
+                       ST_AsGeoJSON(location) AS geojson
+                FROM containers c
+                WHERE {where_sql}
+                ORDER BY key_container
+                """,
+                params,
+            )
+            rows = cur.fetchall()
+        features = [
+            geojson_feature(
+                r["geojson"],
+                {
+                    "key_container": r["key_container"],
+                    "fill_rate":     float(r["fill_rate"]),
+                    "status":        r["status"],
+                    "type_id":       r["type_id"],
+                    "zone_id":       r["zone_id"],
+                },
+            )
+            for r in rows
+        ]
+        from fastapi.responses import JSONResponse
+        return JSONResponse(
+            content=geojson_collection(features),
+            headers={"Content-Disposition": "attachment; filename=containers.geojson"},
+            media_type="application/geo+json",
+        )
+
+    # CSV
+    with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
+        cur.execute(
+            f"SELECT {_COLS} FROM containers c WHERE {where_sql} ORDER BY c.key_container",
+            params,
+        )
+        rows = cur.fetchall()
+
+    output = io.StringIO()
+    writer = csv.writer(output)
+    writer.writerow([
+        "key_container", "lat", "lng", "type_id", "zone_id",
+        "capacity_liters", "fill_rate", "status", "fill_threshold_pct",
+        "last_updated", "is_active",
+    ])
+    for r in rows:
+        writer.writerow([
+            r["key_container"], r["lat"], r["lng"], r["type_id"], r["zone_id"],
+            r["capacity_liters"], r["fill_rate"], r["status"], r["fill_threshold_pct"],
+            r["last_updated"], r["is_active"],
+        ])
+    output.seek(0)
+    return StreamingResponse(
+        iter([output.read()]),
+        media_type="text/csv",
+        headers={"Content-Disposition": "attachment; filename=containers.csv"},
+    )
+
+
+@router.post("/import", response_model=ImportReport)
+async def import_containers(
+    file: UploadFile = File(...),
+    conn=Depends(get_db),
+):
+    """
+    Batch import containers from a CSV or JSON file.
+    CSV columns: lat, lng, type_name, capacity_liters, fill_threshold_pct
+    """
+    content = await file.read()
+    filename = file.filename or ""
+
+    rows: list = []
+    parse_error: Optional[str] = None
+
+    if filename.endswith(".json") or (file.content_type or "").startswith("application/json"):
+        try:
+            data = json.loads(content)
+            if isinstance(data, list):
+                rows = data
+            else:
+                parse_error = "JSON root must be an array"
+        except json.JSONDecodeError as exc:
+            parse_error = f"Invalid JSON: {exc}"
+    else:
+        try:
+            text = content.decode("utf-8-sig")
+            reader = csv.DictReader(io.StringIO(text))
+            rows = list(reader)
+        except Exception as exc:
+            parse_error = f"CSV parse error: {exc}"
+
+    if parse_error:
+        raise HTTPException(status_code=400, detail=parse_error)
+
+    # Build type_name → key_type map once
+    with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
+        cur.execute("SELECT key_type, name FROM container_type")
+        type_map = {r["name"].lower(): r["key_type"] for r in cur.fetchall()}
+
+    total = len(rows)
+    inserted = 0
+    errors = 0
+    duplicates = 0
+    error_details: list[RowError] = []
+
+    for i, row in enumerate(rows, start=1):
+        # Validate lat/lng
+        try:
+            lat = float(row.get("lat") or row.get("LAT") or row.get("Lat") or "")
+            lng = float(row.get("lng") or row.get("LNG") or row.get("Lng") or "")
+        except (ValueError, TypeError):
+            errors += 1
+            error_details.append(RowError(row=i, reason="Missing or invalid lat/lng"))
+            continue
+
+        if not (-90 <= lat <= 90) or not (-180 <= lng <= 180):
+            errors += 1
+            error_details.append(RowError(row=i, reason=f"lat/lng out of range ({lat}, {lng})"))
+            continue
+
+        # Resolve type_name → type_id
+        type_id: Optional[int] = None
+        type_name = str(row.get("type_name") or row.get("type") or "").strip()
+        if type_name:
+            type_id = type_map.get(type_name.lower())
+            if type_id is None:
+                errors += 1
+                error_details.append(RowError(row=i, reason=f"Unknown type '{type_name}'"))
+                continue
+
+        # Validate numeric fields
+        try:
+            capacity_liters = float(row.get("capacity_liters") or 1000.0)
+            fill_threshold_pct = float(row.get("fill_threshold_pct") or 70.0)
+        except (ValueError, TypeError):
+            errors += 1
+            error_details.append(RowError(row=i, reason="Invalid capacity or threshold value"))
+            continue
+
+        # Duplicate check: active container within 1 m
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                SELECT 1 FROM containers
+                WHERE is_active = true
+                  AND ST_DWithin(
+                      location,
+                      ST_SetSRID(ST_MakePoint(%(lng)s, %(lat)s), 4326)::geography,
+                      1
+                  )
+                LIMIT 1
+                """,
+                {"lat": lat, "lng": lng},
+            )
+            if cur.fetchone():
+                duplicates += 1
+                continue
+
+        # Insert with SAVEPOINT so one failure doesn't abort the whole batch
+        with conn.cursor() as cur:
+            cur.execute("SAVEPOINT import_row")
+        try:
+            with conn.cursor() as cur:
+                cur.execute(
+                    """
+                    INSERT INTO containers (location, type_id, capacity_liters, fill_threshold_pct)
+                    VALUES (
+                        ST_SetSRID(ST_MakePoint(%(lng)s, %(lat)s), 4326),
+                        %(type_id)s, %(capacity_liters)s, %(fill_threshold_pct)s
+                    )
+                    """,
+                    {
+                        "lng": lng, "lat": lat,
+                        "type_id": type_id,
+                        "capacity_liters": capacity_liters,
+                        "fill_threshold_pct": fill_threshold_pct,
+                    },
+                )
+            with conn.cursor() as cur:
+                cur.execute("RELEASE SAVEPOINT import_row")
+            inserted += 1
+        except Exception as exc:
+            with conn.cursor() as cur:
+                cur.execute("ROLLBACK TO SAVEPOINT import_row")
+            errors += 1
+            error_details.append(RowError(row=i, reason=str(exc)[:200]))
+
+    return ImportReport(
+        total=total,
+        inserted=inserted,
+        errors=errors,
+        duplicates=duplicates,
+        error_details=error_details,
+    )
 
 
 # ── Collection ────────────────────────────────────────────────────────────────

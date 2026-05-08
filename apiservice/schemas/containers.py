@@ -1,5 +1,5 @@
 from datetime import datetime
-from typing import Optional
+from typing import List, Optional
 
 from pydantic import BaseModel, Field
 
@@ -70,3 +70,16 @@ class ContainerStats(BaseModel):
     median_fill_rate: float
     overflow_rate_pct: float
     by_status: dict[str, int]
+
+
+class RowError(BaseModel):
+    row: int
+    reason: str
+
+
+class ImportReport(BaseModel):
+    total: int
+    inserted: int
+    errors: int
+    duplicates: int
+    error_details: List[RowError]

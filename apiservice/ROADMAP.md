@@ -109,14 +109,14 @@ kubectl port-forward svc/apiservice 8000:8000 -n datalake
 
 | Method | Endpoint | Epic ref | Status | Tables / Functions |
 |--------|----------|----------|--------|--------------------|
-| `GET` | `/history/{container_id}` | H5 | ❌ | `fill_history` — params: `from`, `to`, `granularity` (raw/hourly/daily) |
-| `GET` | `/history/heatmap-data` | H7 | ❌ | `get_heatmap_data()` — `{day_of_week, hour_of_day, count}` |
-| `POST` | `/containers/import` | C7 | ❌ | Batch CSV/JSON import — validate, dedup, bulk insert |
-| `GET` | `/containers/export` | C8 | ❌ | Stream CSV or GeoJSON — `format=csv\|geojson` |
-| `GET` | `/routes` | T2 | ❌ | `routes` + `teams` + `zones` — paginated, filters: `date`, `zone_id`, `team_id`, `status` |
-| `GET` | `/routes/stats` | T8 | ❌ | `routes` + `collections` + `route_steps` — total distance, collections, overflows avoided |
-| `GET` | `/routes/{id}` | T3 | ❌ | `routes` + `route_steps` + `containers` — GeoJSON LineString path + ordered steps |
-| `POST` | `/routes/{id}/export` | T6 | ❌ | PDF/JSON route sheet — ordered stops, distances via `ST_Distance` |
+| `GET` | `/history/{container_id}` | H5 | ✅ | `fill_history` / `aggregated_hourly_stats` / `aggregated_daily_stats` — `granularity=raw\|hourly\|daily` |
+| `GET` | `/history/heatmap-data` | H7 | ✅ | `get_heatmap_data()` — `{day_of_week, hour_of_day, count}` |
+| `POST` | `/containers/import` | C7 | ✅ | Batch CSV/JSON — validate, dedup via `ST_DWithin`, SAVEPOINT per row |
+| `GET` | `/containers/export` | C8 | ✅ | `StreamingResponse` CSV or GeoJSON — `format=csv\|geojson` |
+| `GET` | `/routes` | T2 | ✅ | `routes` — paginated, filters: `zone_id`, `team_id`, `status`, `date_from/to` |
+| `GET` | `/routes/stats` | T8 | ✅ | `routes` + `collections` + `containers` — distance, collections, overflows avoided |
+| `GET` | `/routes/{id}` | T3 | ✅ | `routes` + `route_steps` — GeoJSON LineString path + ordered steps |
+| `POST` | `/routes/{id}/export` | T6 | ✅ | PDF (reportlab) or JSON route sheet |
 
 ---
 
@@ -127,7 +127,7 @@ kubectl port-forward svc/apiservice 8000:8000 -n datalake
 
 | # | Prerequisite | Status |
 |---|-------------|--------|
-| 1 | All Phase 2 endpoints implemented and tested | ❌ Not started |
+| 1 | All Phase 2 endpoints implemented and tested | ✅ Done |
 | 2 | `aggregated_daily_stats` with ≥ 30 days of history | ⚠️ Depends on how long `lasc__livesim_fill` has been running |
 | 3 | `collections` table has data | ⚠️ Depends on livesim DAGs and seed data |
 | 4 | `signalements` table has data | ⚠️ `lasc__livesim_signalements` DAG exists — verify it is active |
@@ -221,8 +221,8 @@ apiservice/
 ├── routers/
 │   ├── containers.py    # Phase 1 — ✅ implemented
 │   ├── zones.py         # Phase 1 — ✅ implemented
-│   ├── history.py       # Phase 2 — stub
-│   ├── routes.py        # Phase 2 — stub
+│   ├── history.py       # Phase 2 — ✅ implemented
+│   ├── routes.py        # Phase 2 — ✅ implemented
 │   ├── analytics.py     # Phase 3 — stub
 │   ├── dashboard.py     # Phase 3 — stub
 │   ├── gamification.py  # Phase 4 — stub
@@ -230,8 +230,10 @@ apiservice/
 │   └── reports.py       # Phase 4 — stub
 └── schemas/
     ├── common.py        # PaginatedResponse[T]
-    ├── containers.py    # ContainerCreate/Update/Out, MeasureCreate/Out
-    └── zones.py         # ZoneCreate/Update/Out
+    ├── containers.py    # ContainerCreate/Update/Out, MeasureCreate/Out, ImportReport
+    ├── zones.py         # ZoneCreate/Update/Out
+    ├── history.py       # HistoryBucket, HeatmapPoint
+    └── routes.py        # RouteOut, RouteDetail, RouteStep, RouteStats
 
 helmcharts/
 └── apiservice-deployment.yaml  # Deployment + Service in datalake namespace
