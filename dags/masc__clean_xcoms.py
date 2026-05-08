@@ -9,11 +9,12 @@ Weekly (every Monday at 9:00 AM UTC)
 """
 
 from airflow import DAG
-from airflow.providers.standard.operators.bash import BashOperator
+from airflow.providers.cncf.kubernetes.operators.pod import KubernetesPodOperator
 from airflow.providers.standard.operators.empty import EmptyOperator
 from airflow.task.trigger_rule import TriggerRule
 from datetime import datetime
 from zoneinfo import ZoneInfo
+from kubernetes.client import models as k8s
 
 # =============================================================
 # Default arguments for the DAG
@@ -45,19 +46,52 @@ with DAG(
         task_display_name="Start",
     )
 
-    clean_xcoms_task = BashOperator(
+    clean_xcoms_task = KubernetesPodOperator(
         task_id="clean_xcoms",
         task_display_name="Clean xcoms",
-        bash_command=(
-            "airflow db clean --table xcom -y --skip-archive "
-            "--clean-before-timestamp '{{ macros.ds_add(ds, -7) }}T00:00:00+00:00'"
-        ),
+        name="airflow-clean-xcoms",
+        namespace="airflow",
+        image="apache/airflow:3.0.2",
+        # KubernetesPodOperator creates a fresh pod outside the SDK task runner,
+        # so the DB connection env var is read directly from the K8s secret.
+        cmds=["airflow"],
+        arguments=[
+            "db", "clean",
+            "--table", "xcom",
+            "-y",
+            "--skip-archive",
+            "--clean-before-timestamp",
+            "{{ macros.ds_add(ds, -7) }}T00:00:00+00:00",
+        ],
+        env_vars=[
+            k8s.V1EnvVar(
+                name="AIRFLOW__DATABASE__SQL_ALCHEMY_CONN",
+                value_from=k8s.V1EnvVarSource(
+                    secret_key_ref=k8s.V1SecretKeySelector(
+                        name="airflow-metadata-credentials",
+                        key="connection",
+                    )
+                ),
+            ),
+            k8s.V1EnvVar(
+                name="AIRFLOW__CORE__FERNET_KEY",
+                value_from=k8s.V1EnvVarSource(
+                    secret_key_ref=k8s.V1SecretKeySelector(
+                        name="airflow-fernet-key",
+                        key="fernet-key",
+                    )
+                ),
+            ),
+        ],
+        is_delete_operator_pod=True,
+        get_logs=True,
+        do_xcom_push=False,
     )
 
     end_task = EmptyOperator(
         task_id="end",
         task_display_name="End",
-        trigger_rule=TriggerRule.ALL_DONE,
+        trigger_rule=TriggerRule.NONE_FAILED_MIN_ONE_SUCCESS,
     )
 
 # Workflow
