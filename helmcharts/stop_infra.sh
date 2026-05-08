@@ -1,6 +1,6 @@
 #!/bin/bash
 
-stacknumber=6
+stacknumber=7
 stopedstacknumber=0
 
 # Kill any running port-forward processes
@@ -15,6 +15,13 @@ if [ $? -ne 0 ]; then
   else
     stopedstacknumber=$((stopedstacknumber + 1))
 fi
+
+kubectl delete -f apiservice-deployment.yaml 2>/dev/null
+if [ $? -ne 0 ]; then
+  echo "Failed to uninstall API Service"
+  else
+    stopedstacknumber=$((stopedstacknumber + 1))
+fi  
 
 helm uninstall airflow -n airflow
 if [ $? -ne 0 ]; then

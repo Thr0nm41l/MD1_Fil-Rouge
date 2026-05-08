@@ -22,6 +22,21 @@ See [Global K8S Architecture](helmcharts/k8s-architecture.md) for the full deplo
 
 ## Sections
 
+### API Service
+
+FastAPI REST API exposing all platform data to frontends, IoT devices, and the ML pipeline.
+
+| Document | Contents |
+|---|---|
+| [API Overview](api/index.md) | File structure, environment variables, full endpoint status table |
+| [Foundation](api/foundation.md) | Connection pool, GeoJSON helpers, pagination, Pydantic schemas |
+| [Phase 1 — Containers & Zones](api/phase1-containers-zones.md) | CRUD, soft delete, IoT ingestion, spatial zone queries |
+| [Phase 2 — IoT History & Routes](api/phase2-history-routes.md) | Time series, heatmap data, batch import/export, route sheets |
+| [Phase 3 — Analytics & Dashboard](api/phase3-analytics.md) | 11 analytics endpoints, choropleth, dashboard config persistence |
+| [Phase 4 — Gamification, ML & Reports](api/phase4-gamification-ml-reports.md) | Leaderboard, badges, ML prediction, async PDF/Excel reports |
+
+---
+
 ### Data Pipelines (DAGs)
 
 Airflow DAGs running on the `feature/serviceAPI` branch, synced via git-sync every 30 seconds.

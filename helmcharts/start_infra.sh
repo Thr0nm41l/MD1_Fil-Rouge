@@ -65,6 +65,8 @@ init_namespace monitoring
 # Create namespace for documentation
 init_namespace documentation
 
+# API service runs in the datalake namespace — no separate namespace needed
+
 echo "Namespaces are set up." >&2
 echo "" >&2
 
@@ -201,8 +203,21 @@ echo "Waiting for Grafana pod to be ready..." >&2
 kubectl wait --for=condition=ready pod -l app.kubernetes.io/name=grafana -n monitoring --timeout=300s
 echo "Grafana pod is ready." >&2
 
+# Deploy Api Service (runs in datalake namespace alongside PostgreSQL)
+kubectl apply -f apiservice-deployment.yaml
+if [ $? -ne 0 ]; then
+  echo "Failed to deploy API Service" >&2
+  exit 1
+else
+  echo "API Service deployed successfully." >&2
+fi
+
+echo "Waiting for API Service pod to be ready..." >&2
+kubectl wait --for=condition=ready pod -l app=apiservice -n datalake --timeout=120s
+echo "API Service pod is ready." >&2
+
 # Deploy MkDocs documentation site
-kubectl apply -f mkdocs-deployment.yaml
+kubectl apply -f mkdocs-deployment.yaml -n documentation
 if [ $? -ne 0 ]; then
   echo "Failed to deploy MkDocs" >&2
   exit 1

@@ -1,3 +1,14 @@
 fastapi==0.115.0
 uvicorn[standard]==0.32.0
 psycopg2-binary==2.9.9
+python-dotenv==1.0.1
+
+# Phase 2 — add before implementing /containers/import and /routes/{id}/export
+# python-multipart==0.0.12
+# reportlab==4.2.5
+
+# Phase 4 — add before implementing /ml/predict and /reports/generate
+# scikit-learn==1.5.2
+# pandas==2.2.3
+# numpy==1.26.4
+# openpyxl==3.1.5
