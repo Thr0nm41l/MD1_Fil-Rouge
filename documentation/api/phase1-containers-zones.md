@@ -2,7 +2,7 @@
 
 **Sprint:** S3–4
 **Epic refs:** E3 (C1–C18), E2 (Z1–Z5)
-**Status:** ❌ Not started
+**Status:** ✅ Done
 **Router files:** `routers/containers.py`, `routers/zones.py`
 **Schema files:** `schemas/containers.py`, `schemas/zones.py`
 
@@ -11,7 +11,7 @@
 ## Containers
 
 ### `GET /containers` — C1
-**Status:** ❌
+**Status:** ✅
 
 Paginated list of active containers with optional filters.
 
@@ -32,7 +32,7 @@ Paginated list of active containers with optional filters.
 ---
 
 ### `GET /containers/critical` — C11
-**Status:** ❌
+**Status:** ✅
 
 Returns containers where `fill_rate > fill_threshold_pct`. Threshold is per-container (set at creation or inherited from its `container_type`).
 
@@ -41,7 +41,7 @@ Returns containers where `fill_rate > fill_threshold_pct`. Threshold is per-cont
 ---
 
 ### `GET /containers/stats` — C18
-**Status:** ❌
+**Status:** ✅
 
 Global statistics across all active containers.
 
@@ -59,7 +59,7 @@ Global statistics across all active containers.
 ---
 
 ### `GET /containers/map` — C6
-**Status:** ❌
+**Status:** ✅
 
 Returns a GeoJSON FeatureCollection suitable for rendering on a Leaflet map.
 
@@ -72,7 +72,7 @@ Uses `ST_AsGeoJSON(location)` in SQL. Serialized via `geojson_feature()` + `geoj
 ---
 
 ### `GET /containers/{id}` — C2
-**Status:** ❌
+**Status:** ✅
 
 Single container detail with its latest IoT measurement.
 
@@ -93,7 +93,7 @@ Latest measure: `SELECT … FROM fill_history WHERE container_id = %s ORDER BY m
 ---
 
 ### `POST /containers` — C3
-**Status:** ❌
+**Status:** ✅
 
 Creates a new container. `zone_id` is auto-assigned by the `assign_zone_to_container` DB trigger using `ST_Within`.
 
@@ -106,7 +106,7 @@ Creates a new container. `zone_id` is auto-assigned by the `assign_zone_to_conta
 ---
 
 ### `PUT /containers/{id}` — C4
-**Status:** ❌
+**Status:** ✅
 
 Updates mutable fields. If `lat`/`lng` change, the `assign_zone_to_container` trigger re-evaluates `zone_id`.
 
@@ -117,7 +117,7 @@ Updates mutable fields. If `lat`/`lng` change, the `assign_zone_to_container` tr
 ---
 
 ### `DELETE /containers/{id}` — C5
-**Status:** ❌
+**Status:** ✅
 
 Soft delete — sets `is_active = false`. The row is never physically deleted.
 
@@ -126,7 +126,7 @@ Soft delete — sets `is_active = false`. The row is never physically deleted.
 ---
 
 ### `GET /containers/{id}/history` — C10, H5
-**Status:** ❌
+**Status:** ✅
 
 Time series of IoT measurements for one container. Queries the partitioned `fill_history` table.
 
@@ -147,7 +147,7 @@ Time series of IoT measurements for one container. Queries the partitioned `fill
 ---
 
 ### `POST /containers/{id}/measures` — C12
-**Status:** ❌
+**Status:** ✅
 
 Ingests a single IoT measurement. Applies validation, deduplication, and outlier flagging before inserting into `fill_history`. DB triggers then update `containers.fill_rate`/`status` and generate a threshold notification if needed.
 
@@ -170,7 +170,7 @@ Ingests a single IoT measurement. Applies validation, deduplication, and outlier
 ## Zones
 
 ### `GET /zones` — Z1
-**Status:** ❌
+**Status:** ✅
 
 List all zones with their polygon geometry serialized as GeoJSON.
 
@@ -179,7 +179,7 @@ List all zones with their polygon geometry serialized as GeoJSON.
 ---
 
 ### `POST /zones` — Z1
-**Status:** ❌
+**Status:** ✅
 
 Creates a zone with a GeoJSON polygon.
 
@@ -192,7 +192,7 @@ Creates a zone with a GeoJSON polygon.
 ---
 
 ### `PUT /zones/{id}` — Z1
-**Status:** ❌
+**Status:** ✅
 
 **Request body:** `ZoneUpdate` (all fields optional)
 
@@ -201,7 +201,7 @@ Creates a zone with a GeoJSON polygon.
 ---
 
 ### `DELETE /zones/{id}` — Z1
-**Status:** ❌
+**Status:** ✅
 
 Hard delete. Will fail (FK constraint) if containers or routes reference this zone — return 409 in that case.
 
@@ -210,7 +210,7 @@ Hard delete. Will fail (FK constraint) if containers or routes reference this zo
 ---
 
 ### `GET /zones/{id}/containers` — Z2
-**Status:** ❌
+**Status:** ✅
 
 Returns all active containers whose GPS position falls inside the zone polygon, via `ST_Within`. Delegates to the `get_containers_in_zone(zone_id)` SQL function (uses the GIST index).
 
@@ -220,7 +220,7 @@ Returns all active containers whose GPS position falls inside the zone polygon, 
 ---
 
 ### `GET /zones/stats` — Z3
-**Status:** ❌
+**Status:** ✅
 
 Aggregated statistics per zone.
 
@@ -243,7 +243,7 @@ Sources: `containers` (count, avg), `aggregated_daily_stats` (overflow count ove
 ---
 
 ### `GET /zones/density` — Z5
-**Status:** ❌
+**Status:** ✅
 
 Containers per km² for each zone with a polygon. Delegates to `get_zone_density(zone_id)` SQL function.
 

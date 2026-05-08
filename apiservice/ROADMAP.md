@@ -68,23 +68,23 @@ kubectl port-forward svc/apiservice 8000:8000 -n datalake
 
 | Method | Endpoint | Epic ref | Status | Tables / Functions |
 |--------|----------|----------|--------|--------------------|
-| `GET` | `/containers` | C1 | ❌ | `containers`, `container_type`, `zones` — paginated, filters: `zone_id`, `type_id`, `status`, `fill_rate_min/max`, `is_active` |
-| `GET` | `/containers/critical` | C11 | ❌ | `containers` WHERE `fill_rate > fill_threshold_pct` |
-| `GET` | `/containers/stats` | C18 | ❌ | `containers`, `aggregated_daily_stats` — avg, median, overflow rate |
-| `GET` | `/containers/map` | C6 | ❌ | `containers` — GeoJSON FeatureCollection via `ST_AsGeoJSON` |
-| `GET` | `/containers/{id}` | C2 | ❌ | `containers` + latest row from `fill_history` |
-| `POST` | `/containers` | C3 | ❌ | INSERT into `containers` — trigger `assign_zone_to_container` auto-fills `zone_id` |
-| `PUT` | `/containers/{id}` | C4 | ❌ | UPDATE `containers` (location, type, capacity, thresholds) |
-| `DELETE` | `/containers/{id}` | C5 | ❌ | `UPDATE SET is_active = false` — soft delete only |
-| `GET` | `/containers/{id}/history` | C10, H5 | ❌ | `fill_history` partitioned table — filterable by `from`/`to` date |
-| `POST` | `/containers/{id}/measures` | C12 | ❌ | INSERT into `fill_history` — validate 0–100, dedup via `is_duplicate_measurement()`, triggers `update_container_fill_status` + `generate_fill_alert` |
-| `GET` | `/zones` | Z1 | ❌ | `zones` |
-| `POST` | `/zones` | Z1 | ❌ | INSERT — polygon as GeoJSON → `GEOMETRY(Polygon, 4326)` |
-| `PUT` | `/zones/{id}` | Z1 | ❌ | UPDATE `zones` |
-| `DELETE` | `/zones/{id}` | Z1 | ❌ | Hard delete — 409 if FK constraint violated |
-| `GET` | `/zones/{id}/containers` | Z2 | ❌ | `get_containers_in_zone()` — `ST_Within` + GIST index |
-| `GET` | `/zones/stats` | Z3 | ❌ | `zones` + `containers` + `aggregated_daily_stats` |
-| `GET` | `/zones/density` | Z5 | ❌ | `get_zone_density()` — `COUNT / ST_Area(polygon::geography)` |
+| `GET` | `/containers` | C1 | ✅ | `containers`, `container_type`, `zones` — paginated, filters: `zone_id`, `type_id`, `status`, `fill_rate_min/max`, `is_active` |
+| `GET` | `/containers/critical` | C11 | ✅ | `containers` WHERE `fill_rate > fill_threshold_pct` |
+| `GET` | `/containers/stats` | C18 | ✅ | `containers`, `aggregated_daily_stats` — avg, median, overflow rate |
+| `GET` | `/containers/map` | C6 | ✅ | `containers` — GeoJSON FeatureCollection via `ST_AsGeoJSON` |
+| `GET` | `/containers/{id}` | C2 | ✅ | `containers` + latest row from `fill_history` |
+| `POST` | `/containers` | C3 | ✅ | INSERT into `containers` — trigger `assign_zone_to_container` auto-fills `zone_id` |
+| `PUT` | `/containers/{id}` | C4 | ✅ | UPDATE `containers` (location, type, capacity, thresholds) |
+| `DELETE` | `/containers/{id}` | C5 | ✅ | `UPDATE SET is_active = false` — soft delete only |
+| `GET` | `/containers/{id}/history` | C10, H5 | ✅ | `fill_history` partitioned table — filterable by `from`/`to` date |
+| `POST` | `/containers/{id}/measures` | C12 | ✅ | INSERT into `fill_history` — validate 0–100, dedup via `is_duplicate_measurement()`, triggers `update_container_fill_status` + `generate_fill_alert` |
+| `GET` | `/zones` | Z1 | ✅ | `zones` |
+| `POST` | `/zones` | Z1 | ✅ | INSERT — polygon as GeoJSON → `GEOMETRY(Polygon, 4326)` |
+| `PUT` | `/zones/{id}` | Z1 | ✅ | UPDATE `zones` |
+| `DELETE` | `/zones/{id}` | Z1 | ✅ | Hard delete — 409 if FK constraint violated |
+| `GET` | `/zones/{id}/containers` | Z2 | ✅ | `get_containers_in_zone()` — `ST_Within` + GIST index |
+| `GET` | `/zones/stats` | Z3 | ✅ | `zones` + `containers` + `aggregated_daily_stats` |
+| `GET` | `/zones/density` | Z5 | ✅ | direct SQL — `COUNT / ST_Area(polygon::geography)` |
 
 ---
 
@@ -95,7 +95,7 @@ kubectl port-forward svc/apiservice 8000:8000 -n datalake
 
 | # | Prerequisite | Status |
 |---|-------------|--------|
-| 1 | All Phase 1 endpoints implemented and tested | ❌ Not started |
+| 1 | All Phase 1 endpoints implemented and tested | ✅ Done |
 | 2 | `fill_history` populated with simulated data | ✅ `lasc__livesim_fill` DAG runs every 10 min |
 | 3 | `aggregated_hourly_stats` / `aggregated_daily_stats` being populated | ✅ Same DAG calls `aggregate_hourly` + `aggregate_daily` |
 | 4 | `get_heatmap_data()` DB function present | ✅ Defined in `setup_complete.sql` |
@@ -103,7 +103,7 @@ kubectl port-forward svc/apiservice 8000:8000 -n datalake
 | 6 | `python-multipart` for CSV upload | ⚠️ Commented out in `requirements.txt` — uncomment before `/containers/import` |
 | 7 | `reportlab` for PDF route sheets | ⚠️ Commented out in `requirements.txt` — uncomment before `/routes/{id}/export` |
 
-**Blocking items:** #1, #6 (for `/containers/import`), #7 (for `/routes/{id}/export`).
+**Blocking items:** #6 (for `/containers/import`), #7 (for `/routes/{id}/export`).
 
 ### Endpoints
 
@@ -204,8 +204,8 @@ kubectl port-forward svc/apiservice 8000:8000 -n datalake
 | GeoJSON serialization | `ST_AsGeoJSON()` + `utils.py` helpers | ✅ Done |
 | Pagination | `paginate_query()` + `PaginatedResponse[T]` | ✅ Done |
 | RLS context | `set_user_context(conn, user_id)` in `db.py` | ✅ Helper ready — wire up per route |
-| Query params validation | FastAPI `Query()` with type hints | ❌ Per-route — implement during Phase 1 |
-| Error handling | `HTTPException` for DB errors, 404, 422 | ❌ Per-route — implement during Phase 1 |
+| Query params validation | FastAPI `Query()` with type hints | ✅ Done |
+| Error handling | `HTTPException` for DB errors, 404, 422 | ✅ Done |
 
 ---
 
@@ -219,8 +219,8 @@ apiservice/
 ├── requirements.txt     # deps (Phase 2/4 deps commented, uncomment when needed)
 ├── Dockerfile           # python:3.12-slim — copies main.py, db.py, utils.py, routers/, schemas/
 ├── routers/
-│   ├── containers.py    # Phase 1 — stub
-│   ├── zones.py         # Phase 1 — stub
+│   ├── containers.py    # Phase 1 — ✅ implemented
+│   ├── zones.py         # Phase 1 — ✅ implemented
 │   ├── history.py       # Phase 2 — stub
 │   ├── routes.py        # Phase 2 — stub
 │   ├── analytics.py     # Phase 3 — stub

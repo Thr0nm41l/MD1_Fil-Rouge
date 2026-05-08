@@ -34,6 +34,10 @@ class ContainerOut(BaseModel):
     is_active: bool
 
 
+class ContainerDetail(ContainerOut):
+    last_measure: Optional["MeasureOut"] = None
+
+
 class MeasureCreate(BaseModel):
     fill_rate: float = Field(..., ge=0, le=100)
     temperature: Optional[float] = None
@@ -50,3 +54,19 @@ class MeasureOut(BaseModel):
     battery_pct: Optional[float] = None
     is_outlier: bool
     measured_at: datetime
+
+
+class HistoryPoint(BaseModel):
+    fill_rate: float
+    temperature: Optional[float] = None
+    battery_pct: Optional[float] = None
+    is_outlier: bool
+    measured_at: datetime
+
+
+class ContainerStats(BaseModel):
+    total_active: int
+    avg_fill_rate: float
+    median_fill_rate: float
+    overflow_rate_pct: float
+    by_status: dict[str, int]

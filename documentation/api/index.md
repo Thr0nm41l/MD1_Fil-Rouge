@@ -59,7 +59,7 @@ apiservice/
 | Phase | Sprint | Status | Document |
 |---|---|---|---|
 | Foundation (pool, schemas, utils) | Pre-S3 | ✅ Done | [foundation.md](foundation.md) |
-| Phase 1 — Containers & Zones | S3–4 | ❌ Not started | [phase1-containers-zones.md](phase1-containers-zones.md) |
+| Phase 1 — Containers & Zones | S3–4 | ✅ Done | [phase1-containers-zones.md](phase1-containers-zones.md) |
 | Phase 2 — IoT History & Routes | S5–6 | ❌ Not started | [phase2-history-routes.md](phase2-history-routes.md) |
 | Phase 3 — Analytics & Dashboard | S7–8 | ❌ Not started | [phase3-analytics.md](phase3-analytics.md) |
 | Phase 4 — Gamification, ML & Reports | S9–12 | ❌ Not started | [phase4-gamification-ml-reports.md](phase4-gamification-ml-reports.md) |
@@ -85,23 +85,23 @@ Interactive docs available at `http://localhost:8000/docs` once the server is ru
 | Method | Path | Phase | Status |
 |--------|------|-------|--------|
 | `GET` | `/health` | Foundation | ✅ |
-| `GET` | `/containers` | 1 | ❌ |
-| `GET` | `/containers/critical` | 1 | ❌ |
-| `GET` | `/containers/stats` | 1 | ❌ |
-| `GET` | `/containers/map` | 1 | ❌ |
-| `GET` | `/containers/{id}` | 1 | ❌ |
-| `POST` | `/containers` | 1 | ❌ |
-| `PUT` | `/containers/{id}` | 1 | ❌ |
-| `DELETE` | `/containers/{id}` | 1 | ❌ |
-| `GET` | `/containers/{id}/history` | 1 | ❌ |
-| `POST` | `/containers/{id}/measures` | 1 | ❌ |
-| `GET` | `/zones` | 1 | ❌ |
-| `POST` | `/zones` | 1 | ❌ |
-| `PUT` | `/zones/{id}` | 1 | ❌ |
-| `DELETE` | `/zones/{id}` | 1 | ❌ |
-| `GET` | `/zones/{id}/containers` | 1 | ❌ |
-| `GET` | `/zones/stats` | 1 | ❌ |
-| `GET` | `/zones/density` | 1 | ❌ |
+| `GET` | `/containers` | 1 | ✅ |
+| `GET` | `/containers/critical` | 1 | ✅ |
+| `GET` | `/containers/stats` | 1 | ✅ |
+| `GET` | `/containers/map` | 1 | ✅ |
+| `GET` | `/containers/{id}` | 1 | ✅ |
+| `POST` | `/containers` | 1 | ✅ |
+| `PUT` | `/containers/{id}` | 1 | ✅ |
+| `DELETE` | `/containers/{id}` | 1 | ✅ |
+| `GET` | `/containers/{id}/history` | 1 | ✅ |
+| `POST` | `/containers/{id}/measures` | 1 | ✅ |
+| `GET` | `/zones` | 1 | ✅ |
+| `POST` | `/zones` | 1 | ✅ |
+| `PUT` | `/zones/{id}` | 1 | ✅ |
+| `DELETE` | `/zones/{id}` | 1 | ✅ |
+| `GET` | `/zones/{id}/containers` | 1 | ✅ |
+| `GET` | `/zones/stats` | 1 | ✅ |
+| `GET` | `/zones/density` | 1 | ✅ |
 | `GET` | `/history/{container_id}` | 2 | ❌ |
 | `GET` | `/history/heatmap-data` | 2 | ❌ |
 | `POST` | `/containers/import` | 2 | ❌ |

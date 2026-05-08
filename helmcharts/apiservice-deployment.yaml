@@ -18,7 +18,7 @@ spec:
     spec:
       containers:
         - name: apiservice
-          image: thronmail/MD1-fil-rouge-api:latest
+          image: thronmail/md1-fil-rouge-api:latest
           imagePullPolicy: IfNotPresent
           ports:
             - name: http

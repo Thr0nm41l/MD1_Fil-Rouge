@@ -255,6 +255,10 @@ echo "Prometheus (Metrics):" >&2
 echo "  kubectl port-forward svc/prometheus-kube-prometheus-prometheus 9090:9090 --namespace monitoring" >&2
 echo "  http://localhost:9090" >&2
 echo "" >&2
+echo "API Service:" >&2
+echo "  kubectl port-forward svc/apiservice 8000:8000 --namespace datalake" >&2
+echo "  http://localhost:8000" >&2
+echo "" >&2
 echo "MkDocs (Documentation):" >&2
 echo "  kubectl port-forward svc/mkdocs 8081:8000 --namespace documentation" >&2
 echo "  http://localhost:8081" >&2

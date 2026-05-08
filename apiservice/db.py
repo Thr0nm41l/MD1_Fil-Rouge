@@ -34,7 +34,7 @@ def get_conn() -> Generator:
     try:
         yield conn
         conn.commit()
-    except Exception:
+    except BaseException:
         conn.rollback()
         raise
     finally:
