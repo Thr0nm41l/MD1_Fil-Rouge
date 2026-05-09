@@ -171,28 +171,28 @@ kubectl port-forward svc/apiservice 8000:8000 -n datalake
 | 5 | Points triggers active (`signalement_award_points`, `user_badges_award_points`) | ✅ Defined in `setup_complete.sql` |
 | 6 | `user_points` has data | ⚠️ Depends on livesim DAGs running with user associations |
 | 7 | ML model trained (ML1–ML4) — ≥ 30 days `fill_history`, features engineered, model serialized | ❌ Not started — start in parallel with Phase 3 |
-| 8 | `scikit-learn`, `pandas`, `numpy` in `requirements.txt` | ⚠️ Commented out — uncomment before `/ml/predict` |
-| 9 | `reportlab` in `requirements.txt` | ⚠️ Commented out — uncomment before `/reports/generate` |
-| 10 | `openpyxl` in `requirements.txt` | ⚠️ Commented out — uncomment before `/reports/generate` |
-| 11 | Async background task mechanism (`BackgroundTasks`) | ⚠️ FastAPI built-in — no extra dep, just wire it up in `routers/reports.py` |
-| 12 | File storage path for generated reports | ❌ Not configured — needs a PVC or local volume mount in the deployment YAML |
+| 8 | `scikit-learn`, `pandas`, `numpy` in `requirements.txt` | ✅ Already uncommented |
+| 9 | `reportlab` in `requirements.txt` | ✅ Already present (used in Phase 2) |
+| 10 | `openpyxl` in `requirements.txt` | ✅ Already uncommented |
+| 11 | Async background task mechanism (`BackgroundTasks`) | ✅ Wired up in `routers/reports.py` |
+| 12 | File storage path for generated reports | ✅ PVC `apiservice-reports` + `REPORTS_DIR=/reports` in deployment YAML |
 
-**Blocking items:** #1, #7 (longest lead time — start now), #12.
+**Remaining blocker:** #7 — ML model training (independent of API work).
 
 ### Endpoints
 
 | Method | Endpoint | Epic ref | Status | Tables / Functions |
 |--------|----------|----------|--------|--------------------|
-| `GET` | `/leaderboard` | GAM3 | ❌ | `get_leaderboard(limit=100)` |
-| `GET` | `/leaderboard/weekly` | GAM4 | ❌ | `get_leaderboard()` filtered to current ISO week |
-| `GET` | `/leaderboard/monthly` | GAM4 | ❌ | `get_leaderboard()` filtered to current month |
-| `GET` | `/users/{id}/badges` | GAM7 | ❌ | `user_badges` + `badges` — earned + progress toward next |
-| `GET` | `/users/{id}/impact` | GAM11 | ❌ | `user_points` + `signalements` + `collections` — CO₂, reports, points |
-| `GET` | `/defis` | GAM9 | ❌ | `defis` + `defi_participations` — active challenges + collective progress |
-| `POST` | `/defis/{id}/join` | GAM8 | ❌ | INSERT into `defi_participations` |
-| `POST` | `/ml/predict` | ML5 | ❌ | Load trained model → `predicted_fill_rate`, store in `ml_predictions` |
-| `POST` | `/reports/generate` | R4 | ❌ | INSERT `reports` (pending) → async PDF/Excel via `BackgroundTasks` |
-| `GET` | `/reports/{id}/download` | R5 | ❌ | Stream file — check `status = 'ready'` first |
+| `GET` | `/leaderboard` | GAM3 | ✅ | `get_leaderboard(100, NULL, NULL)` |
+| `GET` | `/leaderboard/weekly` | GAM4 | ✅ | `get_leaderboard(100, monday_of_week, NULL)` |
+| `GET` | `/leaderboard/monthly` | GAM4 | ✅ | `get_leaderboard(100, first_of_month, NULL)` |
+| `GET` | `/users/{id}/badges` | GAM7 | ✅ | `user_badges` + `badges` — earned + first unearned per category with regex target |
+| `GET` | `/users/{id}/impact` | GAM11 | ✅ | `user_points` + `signalements` + `collections` — CO₂ heuristic |
+| `GET` | `/defis` | GAM9 | ✅ | `defis` + `defi_participations` — `SUM(progress)` for collective progress |
+| `POST` | `/defis/{id}/join` | GAM8 | ✅ | INSERT `defi_participations` — 409 on `UniqueViolation` |
+| `POST` | `/ml/predict` | ML5 | ⚠️ | Stub — returns 503 until ML1–ML4 model is trained |
+| `POST` | `/reports/generate` | R4 | ✅ | INSERT `reports` (pending) → `BackgroundTasks` → PDF/Excel → PVC |
+| `GET` | `/reports/{id}/download` | R5 | ✅ | `FileResponse` from PVC — status check before streaming |
 
 ---
 
@@ -225,9 +225,9 @@ apiservice/
 │   ├── routes.py        # Phase 2 — ✅ implemented
 │   ├── analytics.py     # Phase 3 — ✅ implemented
 │   ├── dashboard.py     # Phase 3 — ✅ implemented
-│   ├── gamification.py  # Phase 4 — stub
-│   ├── ml.py            # Phase 4 — stub
-│   └── reports.py       # Phase 4 — stub
+│   ├── gamification.py  # Phase 4 — ✅ implemented
+│   ├── ml.py            # Phase 4 — ⚠️ stub (503 until model trained)
+│   └── reports.py       # Phase 4 — ✅ implemented (PDF + Excel via BackgroundTasks + PVC)
 └── schemas/
     ├── common.py        # PaginatedResponse[T]
     ├── containers.py    # ContainerCreate/Update/Out, MeasureCreate/Out, ImportReport

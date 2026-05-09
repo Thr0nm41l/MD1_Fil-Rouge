@@ -62,7 +62,7 @@ apiservice/
 | Phase 1 — Containers & Zones | S3–4 | ✅ Done | [phase1-containers-zones.md](phase1-containers-zones.md) |
 | Phase 2 — IoT History & Routes | S5–6 | ✅ Done | [phase2-history-routes.md](phase2-history-routes.md) |
 | Phase 3 — Analytics & Dashboard | S7–8 | ✅ Done | [phase3-analytics.md](phase3-analytics.md) |
-| Phase 4 — Gamification, ML & Reports | S9–12 | ❌ Not started | [phase4-gamification-ml-reports.md](phase4-gamification-ml-reports.md) |
+| Phase 4 — Gamification, ML & Reports | S9–12 | ⚠️ Partial (ML pending model) | [phase4-gamification-ml-reports.md](phase4-gamification-ml-reports.md) |
 
 ---
 
@@ -123,13 +123,13 @@ Interactive docs available at `http://localhost:8000/docs` once the server is ru
 | `GET` | `/analytics/costs-roi` | 3 | ✅ |
 | `GET` | `/dashboard/config` | 3 | ✅ |
 | `PUT` | `/dashboard/config` | 3 | ✅ |
-| `GET` | `/leaderboard` | 4 | ❌ |
-| `GET` | `/leaderboard/weekly` | 4 | ❌ |
-| `GET` | `/leaderboard/monthly` | 4 | ❌ |
-| `GET` | `/users/{id}/badges` | 4 | ❌ |
-| `GET` | `/users/{id}/impact` | 4 | ❌ |
-| `GET` | `/defis` | 4 | ❌ |
-| `POST` | `/defis/{id}/join` | 4 | ❌ |
-| `POST` | `/ml/predict` | 4 | ❌ |
-| `POST` | `/reports/generate` | 4 | ❌ |
-| `GET` | `/reports/{id}/download` | 4 | ❌ |
+| `GET` | `/leaderboard` | 4 | ✅ |
+| `GET` | `/leaderboard/weekly` | 4 | ✅ |
+| `GET` | `/leaderboard/monthly` | 4 | ✅ |
+| `GET` | `/users/{id}/badges` | 4 | ✅ |
+| `GET` | `/users/{id}/impact` | 4 | ✅ |
+| `GET` | `/defis` | 4 | ✅ |
+| `POST` | `/defis/{id}/join` | 4 | ✅ |
+| `POST` | `/ml/predict` | 4 | ⚠️ stub — pending model |
+| `POST` | `/reports/generate` | 4 | ✅ |
+| `GET` | `/reports/{id}/download` | 4 | ✅ |

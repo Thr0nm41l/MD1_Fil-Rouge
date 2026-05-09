@@ -2,7 +2,7 @@
 
 **Sprint:** S9–12
 **Epic refs:** E9 (GAM3–GAM11), E10 (ML5), E7 (R4–R5)
-**Status:** ❌ Not started
+**Status:** ⚠️ Partial — gamification, reports, leaderboard ✅ · ML pending trained model
 **Router files:** `routers/gamification.py`, `routers/ml.py`, `routers/reports.py`
 **Livrable:** L4 — ML R²>0.65, API prédiction, rapports PDF/Excel
 **Prerequisite:** Phase 3 complete + ML model trained (ML1–ML4) + ≥ 30 days `fill_history`

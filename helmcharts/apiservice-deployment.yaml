@@ -1,4 +1,17 @@
 ---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: apiservice-reports
+  namespace: datalake
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 1Gi
+
+---
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -38,6 +51,11 @@ spec:
                 secretKeyRef:
                   name: postgres-credentials
                   key: postgres-password
+            - name: REPORTS_DIR
+              value: "/reports"
+          volumeMounts:
+            - name: reports-storage
+              mountPath: /reports
           readinessProbe:
             httpGet:
               path: /health
@@ -59,6 +77,10 @@ spec:
             limits:
               cpu: "200m"
               memory: "256Mi"
+      volumes:
+        - name: reports-storage
+          persistentVolumeClaim:
+            claimName: apiservice-reports
 
 ---
 apiVersion: v1
