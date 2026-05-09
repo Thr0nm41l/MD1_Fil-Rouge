@@ -27,8 +27,16 @@ nav:
     - Test Connection: dags/test_list_tables_from_connection.md
   - Database:
     - Architecture: database/setup_complete.md
+  - API:
+    - Overview: api/index.md
+    - Foundation: api/foundation.md
+    - Containers & Zones: api/phase1-containers-zones.md
+    - History & Routes: api/phase2-history-routes.md
+    - Analytics: api/phase3-analytics.md
+    - Gamification, ML & Reports: api/phase4-gamification-ml-reports.md
   - Helmcharts:
     - Global Architecture: helmcharts/k8s-architecture.md
+    - Traefik: helmcharts/traefik.md
     - Airflow: helmcharts/airflow.md
     - Postgres: helmcharts/postgres.md
     - PGAdmin: helmcharts/pgadmin.md
