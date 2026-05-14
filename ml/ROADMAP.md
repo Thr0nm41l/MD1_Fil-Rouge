@@ -81,10 +81,8 @@ df_hist = pd.read_sql("""
 df_zones = pd.read_sql("""
     SELECT
         key_zone,
-        ROUND(
-            COUNT(c.key_container)::numeric /
-            NULLIF(ST_Area(z.polygon::geography) / 1e6, 0),
-        4) AS density_km2
+        COUNT(c.key_container)::numeric /
+            NULLIF(ST_Area(z.polygon::geography)::numeric / 1e6, 0) AS density_km2
     FROM zones z
     LEFT JOIN containers c ON ST_Within(c.location, z.polygon) AND c.is_active = true
     WHERE z.polygon IS NOT NULL
@@ -527,11 +525,11 @@ kubectl cp ml/models/metadata.json datalake/<apiservice-pod>:/ml/models/metadata
 
 | # | Task | Notebook | Output | Done |
 |---|------|----------|--------|------|
-| ML1 | EDA + feature engineering | `01_eda_feature_engineering.ipynb` | `data/training_features.parquet` | ❌ |
-| ML2 | LinearRegression + RandomForest implemented | `02_training.ipynb` | — | ❌ |
-| ML3 | Temporal 80/20 split + TimeSeriesSplit CV | `02_training.ipynb` | `models/model.pkl`, `models/metadata.json` | ❌ |
-| ML4 | RMSE < 10, MAE < 7, R² > 0.65 + 3 plots | `03_evaluation.ipynb` | `plots/*.png` | ❌ |
-| ML5 | `/ml/predict` endpoint wired up | `apiservice/routers/ml.py` | — | ⚠️ stub ready |
+| ML1 | EDA + feature engineering | `01_eda_feature_engineering.ipynb` | `data/training_features.parquet` | ⚠️ notebook ready — run to produce parquet |
+| ML2 | LinearRegression + RandomForest implemented | `02_training.ipynb` | — | ⚠️ notebook ready — run after ML1 |
+| ML3 | Temporal 80/20 split + TimeSeriesSplit CV | `02_training.ipynb` | `models/model.pkl`, `models/metadata.json` | ⚠️ notebook ready — run after ML1 |
+| ML4 | RMSE < 10, MAE < 7, R² > 0.65 + 3 plots | `03_evaluation.ipynb` | `plots/*.png` | ⚠️ notebook ready — run after ML2+ML3 |
+| ML5 | `/ml/predict` endpoint wired up | `apiservice/routers/ml.py` | — | ⚠️ stub ready — wire up after ML3 |
 
 **Blocking order:** ML1 → ML2 → ML3 → ML4 → ML5 → deploy  
 **Longest step:** ML1 (data prep) — budget at least a full session if working with the live DB  

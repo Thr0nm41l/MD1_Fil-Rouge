@@ -37,6 +37,16 @@ FastAPI REST API exposing all platform data to frontends, IoT devices, and the M
 
 ---
 
+### Machine Learning
+
+Predictive fill-rate model (24h horizon) powering the `/ml/predict` endpoint.
+
+| Document | Contents |
+|---|---|
+| [ML Overview](ml/index.md) | Directory structure, prerequisites, feature table, model comparison, API integration guide |
+
+---
+
 ### Data Pipelines (DAGs)
 
 Airflow DAGs running on the `feature/serviceAPI` branch, synced via git-sync every 30 seconds.

@@ -1,0 +1,28 @@
+{
+  "version": "rf_v1.0",
+  "trained_at": "2026-05-14T10:43:42.907933+00:00",
+  "feature_cols": [
+    "hour",
+    "day_of_week",
+    "day_of_month",
+    "is_weekend",
+    "is_peak_hour",
+    "fill_rate_1h_ago",
+    "fill_rate_24h_ago",
+    "fill_rate_7d_ago",
+    "fill_rate_24h_avg",
+    "fill_rate_7d_avg",
+    "fill_rate_change_rate",
+    "capacity_liters",
+    "type_id",
+    "density_km2"
+  ],
+  "cv_r2": 0.7523,
+  "test_r2": 0.203,
+  "test_rmse": 18.0265,
+  "test_mae": 11.5113,
+  "model_type": "rf",
+  "train_rows": 1812390,
+  "test_rows": 453098,
+  "n_features": 14
+}
