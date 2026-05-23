@@ -65,6 +65,11 @@ init_namespace monitoring
 # Create namespace for documentation
 init_namespace documentation
 
+# Create namespace for traefik ingress controller
+init_namespace traefik
+
+# API service runs in the datalake namespace — no separate namespace needed
+
 echo "Namespaces are set up." >&2
 echo "" >&2
 
@@ -133,7 +138,21 @@ helm repo add apache-airflow https://airflow.apache.org
 helm repo add prometheus-community https://prometheus-community.github.io/helm-charts
 helm repo add grafana https://grafana.github.io/helm-charts
 helm repo add runix https://helm.runix.net
+helm repo add traefik https://traefik.github.io/charts
 helm repo update
+
+# Install Traefik ingress controller first so the ingress class is available
+helm install traefik traefik/traefik --values traefik-values.yaml -n traefik
+if [ $? -ne 0 ]; then
+  echo "Failed to install Traefik" >&2
+  exit 1
+else
+  echo "Traefik installed successfully." >&2
+fi
+
+echo "Waiting for Traefik pod to be ready..." >&2
+kubectl wait --for=condition=ready pod -l app.kubernetes.io/name=traefik -n traefik --timeout=120s
+echo "Traefik pod is ready." >&2
 
 # Install PostgreSQL
 helm install postgres bitnami/postgresql --values postgres-values.yaml -n datalake
@@ -201,8 +220,21 @@ echo "Waiting for Grafana pod to be ready..." >&2
 kubectl wait --for=condition=ready pod -l app.kubernetes.io/name=grafana -n monitoring --timeout=300s
 echo "Grafana pod is ready." >&2
 
+# Deploy Api Service (runs in datalake namespace alongside PostgreSQL)
+kubectl apply -f apiservice-deployment.yaml -n datalake
+if [ $? -ne 0 ]; then
+  echo "Failed to deploy API Service" >&2
+  exit 1
+else
+  echo "API Service deployed successfully." >&2
+fi
+
+echo "Waiting for API Service pod to be ready..." >&2
+kubectl wait --for=condition=ready pod -l app=apiservice -n datalake --timeout=120s
+echo "API Service pod is ready." >&2
+
 # Deploy MkDocs documentation site
-kubectl apply -f mkdocs-deployment.yaml
+kubectl apply -f mkdocs-deployment.yaml -n documentation
 if [ $? -ne 0 ]; then
   echo "Failed to deploy MkDocs" >&2
   exit 1
@@ -214,34 +246,28 @@ echo "Waiting for MkDocs pod to be ready..." >&2
 kubectl wait --for=condition=ready pod -l app=mkdocs -n documentation --timeout=120s
 echo "MkDocs pod is ready." >&2
 
-# Port-forward commands (uncomment to auto-start)
-# kubectl port-forward svc/airflow-api-server 8080:8080 --namespace airflow &
-# kubectl port-forward svc/pgadmin-pgadmin4 5050:80 --namespace datalake &
-# kubectl port-forward svc/grafana 3000:80 --namespace monitoring &
-# kubectl port-forward svc/prometheus-kube-prometheus-prometheus 9090:9090 --namespace monitoring &
+# Apply Ingress routing rules for all services
+kubectl apply -f ingress.yaml
+if [ $? -ne 0 ]; then
+  echo "Failed to apply Ingress rules" >&2
+  exit 1
+else
+  echo "Ingress rules applied." >&2
+fi
 
 echo "All Helm charts have been installed." >&2
 echo "" >&2
 echo "=== Access Your Services ===" >&2
 echo "" >&2
-echo "Airflow UI:" >&2
-echo "  kubectl port-forward svc/airflow-api-server 8080:8080 --namespace airflow" >&2
-echo "  http://localhost:8080 (admin / admin)" >&2
+printf "\033[33mRun once in a separate terminal to expose the LoadBalancer:\033[0m\n" >&2
+echo "  sudo minikube tunnel" >&2
 echo "" >&2
-echo "pgAdmin:" >&2
-echo "  kubectl port-forward svc/pgadmin-pgadmin4 5050:80 --namespace datalake" >&2
-echo "  http://localhost:5050 (admin@admin.com / admin)" >&2
-echo "" >&2
-echo "Grafana (Dashboards):" >&2
-echo "  kubectl port-forward svc/grafana 3000:80 --namespace monitoring" >&2
-echo "  http://localhost:3000 (admin / <your-password>)" >&2
-echo "" >&2
-echo "Prometheus (Metrics):" >&2
-echo "  kubectl port-forward svc/prometheus-kube-prometheus-prometheus 9090:9090 --namespace monitoring" >&2
-echo "  http://localhost:9090" >&2
-echo "" >&2
-echo "MkDocs (Documentation):" >&2
-echo "  kubectl port-forward svc/mkdocs 8081:8000 --namespace documentation" >&2
-echo "  http://localhost:8081" >&2
+echo "Airflow UI:    http://airflow.localhost" >&2
+echo "pgAdmin:       http://pgadmin.localhost" >&2
+echo "Grafana:       http://grafana.localhost" >&2
+echo "Prometheus:    http://prometheus.localhost" >&2
+echo "API Service:   http://api.localhost" >&2
+echo "MkDocs:        http://docs.localhost" >&2
+echo "Traefik:       http://traefik.localhost/dashboard/" >&2
 echo "" >&2
 exit 0

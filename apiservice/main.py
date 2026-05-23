@@ -1,28 +1,42 @@
+from contextlib import asynccontextmanager
+
 from fastapi import FastAPI
-from fastapi.responses import JSONResponse
-import os
-import psycopg2
 
-def get_db_connection():
-    """Create and return a PostgreSQL database connection."""
-    
-# Check if all required environment variables for PostgreSQL are set
-    required_vars = ["POSTGRES_HOST", "POSTGRES_DB", "POSTGRES_USER", "POSTGRES_PASSWORD"]
-    missing_vars = [var for var in required_vars if not os.getenv(var)]
-    if missing_vars:
-        raise EnvironmentError(f"Missing required environment variables for PostgreSQL: {', '.join(missing_vars)}")
+try:
+    from dotenv import load_dotenv
+    load_dotenv()
+except ImportError:
+    pass
 
-    return psycopg2.connect(
-        host=os.getenv("POSTGRES_HOST"),
-        database=os.getenv("POSTGRES_DB"),
-        user=os.getenv("POSTGRES_USER"),
-        password=os.getenv("POSTGRES_PASSWORD"),
-        port=os.getenv("POSTGRES_PORT", 5432)  # Default to 5432 if not set
-    )
+from db import init_pool, close_pool
+from routers import containers, zones, history, routes, analytics, dashboard, gamification, ml, reports
 
-app = FastAPI()
 
-@app.get("/health")
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    init_pool()
+    yield
+    close_pool()
+
+
+app = FastAPI(
+    title="ECOTRACK API",
+    description="Plateforme intelligente de gestion des déchets urbains",
+    version="0.1.0",
+    lifespan=lifespan,
+)
+
+app.include_router(containers.router, prefix="/containers", tags=["containers"])
+app.include_router(zones.router,       prefix="/zones",      tags=["zones"])
+app.include_router(history.router,     prefix="/history",    tags=["history"])
+app.include_router(routes.router,      prefix="/routes",     tags=["routes"])
+app.include_router(analytics.router,   prefix="/analytics",  tags=["analytics"])
+app.include_router(dashboard.router,   prefix="/dashboard",  tags=["dashboard"])
+app.include_router(gamification.router,                      tags=["gamification"])
+app.include_router(ml.router,          prefix="/ml",         tags=["ml"])
+app.include_router(reports.router,     prefix="/reports",    tags=["reports"])
+
+
+@app.get("/health", tags=["system"])
 def health_status():
-    """Health check endpoint."""
     return {"status": "ok", "message": "API is running"}

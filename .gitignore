@@ -211,3 +211,7 @@ __marimo__/
 
 # IA context files
 CLAUDE.md
+
+# ML files
+*.parquet
+*.pkl

@@ -1,6 +1,6 @@
 #!/bin/bash
 
-stacknumber=6
+stacknumber=9
 stopedstacknumber=0
 
 # Kill any running port-forward processes
@@ -9,12 +9,33 @@ echo "Stopping port-forwards..." >&2
 #pkill -f "kubectl port-forward.*pgadmin"
 echo "Port-forwards stopped." >&2
 
+kubectl delete -f ingress.yaml 2>/dev/null
+if [ $? -ne 0 ]; then
+  echo "Failed to delete Ingress rules"
+  else
+    stopedstacknumber=$((stopedstacknumber + 1))
+fi
+
+helm uninstall traefik -n traefik
+if [ $? -ne 0 ]; then
+  echo "Failed to uninstall Traefik"
+  else
+    stopedstacknumber=$((stopedstacknumber + 1))
+fi
+
 kubectl delete -f mkdocs-deployment.yaml 2>/dev/null
 if [ $? -ne 0 ]; then
   echo "Failed to uninstall MkDocs"
   else
     stopedstacknumber=$((stopedstacknumber + 1))
 fi
+
+kubectl delete -f apiservice-deployment.yaml 2>/dev/null
+if [ $? -ne 0 ]; then
+  echo "Failed to uninstall API Service"
+  else
+    stopedstacknumber=$((stopedstacknumber + 1))
+fi  
 
 helm uninstall airflow -n airflow
 if [ $? -ne 0 ]; then
