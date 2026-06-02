@@ -235,7 +235,7 @@ with DAG(
 
     simulate_fill_task = PythonOperator(
         task_id="simulate_fill",
-        task_display_name="Simulate Fill (+10 min)",
+        task_display_name="Simulate Fill",
         python_callable=task_simulate_fill,
     )
 
