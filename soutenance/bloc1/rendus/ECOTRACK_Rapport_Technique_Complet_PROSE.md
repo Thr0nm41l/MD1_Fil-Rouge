@@ -54,7 +54,87 @@ Le DAG `lasc__seed_data` est déclenché manuellement et assure la génération 
 
 La couche de restitution s'articule autour de trois composants déployés dans deux namespaces Kubernetes distincts. L'API REST analytics est exposée par FastAPI — 9 routers, 40+ endpoints — dans le namespace `datalake`. Les dashboards opérationnels sont pris en charge par Grafana, qui interroge directement PostgreSQL via sa datasource native, dans le namespace `monitoring`. L'observabilité de l'infrastructure est assurée par la stack Prometheus + AlertManager + Node Exporter, également dans le namespace `monitoring`.
 
-**Bilan de faisabilité :** FAVORABLE. L'architecture couvre les 115 tâches du CDC avec une stack cohérente (PostgreSQL + Airflow + FastAPI + Grafana) déployée sur Kubernetes, sans les coûts d'exploitation d'une infrastructure Big Data (Kafka + Spark + MinIO) dont le volume — 1,44 M lignes sur 30 jours — ne justifie pas la complexité.
+**Bilan de faisabilité technique :** FAVORABLE. L'architecture couvre les 115 tâches du CDC avec une stack cohérente (PostgreSQL + Airflow + FastAPI + Grafana) déployée sur Kubernetes, sans les coûts d'exploitation d'une infrastructure Big Data (Kafka + Spark + MinIO) dont le volume — 1,44 M lignes sur 30 jours — ne justifie pas la complexité.
+
+### 1.5 Faisabilité économique
+
+#### 1.5.1 Coûts d'infrastructure
+
+L'infrastructure actuelle (Minikube, workstation locale) génère un coût de fonctionnement nul hors matériel — c'est une hypothèse de développement et de démonstration. Un déploiement équivalent en production sur un cloud souverain français (Scaleway ou OVH Cloud) est estimé à **650 à 900 € HT/mois**, soit **7 800 à 10 800 € HT/an**. Ce coût se décompose en trois postes principaux. Le cluster Kubernetes de 3 nœuds (4 vCPU / 16 Go RAM chacun, dimensionné pour faire tourner le Scheduler Airflow, deux Workers Celery, FastAPI et la stack monitoring) représente le poste dominant à 350–500 € mensuels. L'instance PostgreSQL managée (4 vCPU / 16 Go, 100 Go SSD) — choix délibéré pour externaliser la gestion des sauvegardes, des mises à jour de patch et de la réplication — s'établit à 180–250 €. Redis (2 Go RAM, queue Celery) et le stockage persistant des PVCs complètent l'enveloppe pour 55–110 € supplémentaires. L'ensemble reste significativement inférieur à ce qu'imposerait une stack Big Data (Kafka cluster + Spark + MinIO), dont le seul cluster Kafka 3 brokers démarrerait à 400–600 € mensuels sans aucune contrepartie fonctionnelle au regard du volume traité.
+
+#### 1.5.2 Coûts RH
+
+Le développement de la plateforme ECOTRACK est estimé à **140 jours·homme** sur 16 semaines, répartis entre profils Data Engineer (pipeline, BDD, Airflow), Backend Developer (API FastAPI, Kubernetes) et Data Scientist (ML, notebooks). Sur la base d'un tarif journalier moyen de **350 à 450 € HT** (profil junior-médian en régie), le coût de développement initial est estimé entre **49 000 et 63 000 € HT**.
+
+La maintenance courante est évaluée à **0,5 ETP/an** (ingénieur data ou DevOps), soit **25 000 à 35 000 € HT/an** chargé pour une régie interne à une collectivité.
+
+#### 1.5.3 TCO sur 3 ans
+
+Sur 3 ans, le TCO se structure autour de deux phases distinctes. L'investissement initial — développement (56 000 €) et formation (3 000 €) — représente un effort ponctuel de **59 000 €** concentré en année 0. À partir de l'année 1, le coût récurrent annuel se stabilise à **40 000 €** : 9 000 € d'infrastructure cloud et 30 000 € de maintenance RH (0,5 ETP), auxquels s'ajoutent 1 000 € de mise à jour documentaire. Le coût total sur 3 ans s'établit donc à **~179 000 € HT**, dont les deux tiers sont des charges opérationnelles prévisibles et maîtrisables. Ce profil de coût — investissement initial modéré, récurrent lissé — est caractéristique d'une solution construite sur des composants open source sans licence propriétaire (PostgreSQL, Airflow, Grafana, FastAPI), ce qui élimine tout risque de hausse tarifaire fournisseur sur la durée.
+
+#### 1.5.4 Retour sur investissement
+
+L'optimisation des tournées de collecte est le principal levier de ROI. Sans système IoT, les 2 000 conteneurs sont collectés à fréquence fixe (tous les 2 à 3 jours), indépendamment du taux de remplissage réel. ECOTRACK déclenche les collectes à partir d'un seuil configurable — 70 % par défaut, paramètre `fill_threshold_pct` — ce qui supprime les passages sur des conteneurs peu remplis.
+
+**Hypothèses de calcul :**
+- Coût d'un passage de camion benne par conteneur visité : ~12 € (carburant, amortissement, fraction temps chauffeur)
+- Taux de remplissage moyen observé sans optimisation : ~45 % (collecte à fréquence fixe)
+- Réduction des collectes inutiles avec optimisation IoT : 20 à 25 %
+- Nombre de passages annuels sans optimisation : 2 000 × (365 / 3) ≈ 243 000 visites/an
+
+```
+Économie brute   = 243 000 × 22,5 % × 12 €  ≈  656 000 €/an
+Coût récurrent   = 40 000 €/an
+Économie nette   ≈  616 000 €/an
+Retour sur investissement = 59 000 / 616 000  ≈  1,1 mois après déploiement
+```
+
+Ces chiffres sont des **estimations d'ordre de grandeur** basées sur des hypothèses conservatrices pour une collectivité de la taille de Lyon (5 arrondissements). L'économie réelle dépend des contrats de prestation de collecte et des conditions opérationnelles terrain.
+
+**Bilan économique :** FAVORABLE. Le TCO sur 3 ans (~179 000 € HT) est très inférieur aux économies opérationnelles générées dès la première année d'exploitation optimisée (~616 000 € nettes estimées), ce qui positionne ECOTRACK comme un investissement rentable dès le premier trimestre de mise en production.
+
+---
+
+### 1.6 Contraintes légales — RGPD et obligations CNIL
+
+#### 1.6.1 Périmètre des données personnelles traitées
+
+ECOTRACK traite quatre catégories de données personnelles au sens du RGPD (Règlement UE 2016/679) :
+
+**Données d'identification** : email, nom, prénom (table `users`) — données directement identifiantes. **Données d'authentification** : mot de passe haché via bcrypt (coût 12), non réversible — aucune donnée en clair stockée. **Données de localisation** : tracés de tournées en `GEOMETRY(LineString, 4326)` (table `routes`) et localisation des agents de collecte par inférence des `route_steps` — données indirectement identifiantes pour les Workers et Managers. **Données comportementales** : historique de signalements liés à un `user_id`, points de gamification, badges attribués — données permettant de reconstituer un profil d'activité citoyen.
+
+Les données IoT brutes (`fill_history`, `fill_rate`, `is_outlier`) sont rattachées à un `container_id` et un `device_id`, non à une personne physique directement — elles sont considérées comme données non personnelles au sens strict, sauf lien induit avec un agent via `collections.agent_id`.
+
+#### 1.6.2 Bases légales (article 6 RGPD)
+
+Trois bases légales couvrent l'ensemble des traitements d'ECOTRACK :
+
+- **Exécution du contrat** (art. 6.1.b) : traitement des données des agents de collecte (Workers, Managers) dans le cadre de leur mission professionnelle — tournées, collectes, authentification API.
+- **Mission de service public** (art. 6.1.e) : traitement des données opérationnelles dans le cadre de la gestion du service public de collecte des déchets, délégué à la collectivité locale.
+- **Consentement explicite** (art. 6.1.a) : participation volontaire des citoyens au module de gamification (signalements, points, badges) — le consentement doit être recueilli à l'inscription et être révocable à tout moment via la suppression du compte.
+
+#### 1.6.3 Obligations CNIL et principe d'accountability
+
+Depuis le RGPD, la déclaration préalable à la CNIL est supprimée, remplacée par le **principe d'accountability** (art. 5.2 RGPD). Les obligations en résultant pour ECOTRACK :
+
+- **Registre des activités de traitement** (art. 30 RGPD) : obligatoire. Le registre doit documenter au minimum les cinq traitements principaux identifiés : authentification, opérations de collecte, analytics, gamification, monitoring infrastructure.
+- **Délégué à la Protection des Données (DPO)** : la désignation est **obligatoire** pour tout organisme public (art. 37.1.a RGPD). Une collectivité locale déployant ECOTRACK doit désigner un DPO, ou mutualiser ce rôle avec d'autres collectivités.
+- **Analyse d'Impact relative à la Protection des Données (AIPD / PIA)** : **recommandée** pour le traitement de géolocalisation des agents (routes, steps) et pour le profilage comportemental lié à la gamification. La liste CNIL des traitements à risque inclut explicitement la géolocalisation de personnes et les systèmes de scoring.
+- **Information des personnes** (art. 13–14 RGPD) : une notice de confidentialité doit être présentée à l'inscription, précisant les finalités de chaque traitement, les bases légales, les durées de conservation et les droits exercés.
+
+#### 1.6.4 Politique de rétention des données
+
+La stratégie de rétention s'appuie sur le partitionnement natif PostgreSQL 15, qui permet un archivage granulaire sans opération destructive. Le détachement d'une partition mensuelle (`DETACH PARTITION fill_history_YYYY_MM FROM fill_history`) est instantané : la partition reste accessible en lecture seule et peut être montée à la demande avant suppression définitive.
+
+Les données IoT de `fill_history` constituent le volume le plus important — 1,44 M lignes sur 30 jours — et bénéficient d'une durée de conservation de 3 ans (36 partitions mensuelles pré-créées), cohérente avec les besoins de retraining du modèle ML et d'analyse de tendances saisonnières ; au-delà, la partition est détachée puis supprimée. Les données personnelles suivent une logique de durée proportionnée à leur sensibilité : les données utilisateurs (`users`) sont conservées pendant la durée d'activité du compte plus 5 ans après désactivation (soft delete via `is_active = false`) pour répondre aux obligations d'archivage légal, puis purgées. Les données opérationnelles liées aux agents — `collections`, `routes`, `route_steps` — sont conservées 1 an en base active pour les besoins métier, archivées en CSV hors-base, puis supprimées après 5 ans de traçabilité. Les `signalements` citoyens, moins sensibles d'un point de vue opérationnel, sont maintenus 6 mois en base active avant archivage et purgés après 1 an. Enfin, les `notifications` techniques, sans valeur analytique durable, font l'objet d'une purge automatique par cron tous les 3 mois. Les données de gamification (`user_points`, `user_badges`) sont supprimées en cascade à la suppression du compte, ce qui permet d'honorer immédiatement un droit à l'effacement sans intervention manuelle sur plusieurs tables.
+
+#### 1.6.5 Mesures techniques de protection (Privacy by Design)
+
+Cinq mesures techniques implémentent le principe de *Privacy by Design* (art. 25 RGPD) directement dans l'architecture :
+
+**Pseudonymisation** : aucune donnée personnelle dans `fill_history` — le lien avec un agent se fait uniquement via `collections.agent_id`, clé étrangère isolable et supprimable indépendamment. **Chiffrement des credentials** : bcrypt coût 12 pour les mots de passe ; credentials base de données stockés dans des Kubernetes Secrets, jamais en clair dans le code ni dans les Helm values. **Contrôle d'accès granulaire** : Row-Level Security PostgreSQL activée via `SET LOCAL app.user_id` — un utilisateur ne peut accéder qu'à ses propres données depuis l'API, indépendamment de son rôle. **Transport chiffré** : HTTPS assuré par Traefik v3 avec TLS automatique via cert-manager (self-signed en environnement local). **Droits RGPD actionnables** : le droit à l'effacement est implémentable via suppression en cascade sur `users.key_user` (FK avec `ON DELETE CASCADE` sur `user_badges`, `user_points`, `signalements`, `defi_participations`) ; le droit d'accès est actionnable via `GET /users/{id}` avec export JSON de l'ensemble des données associées.
+
+**Bilan légal :** CONFORME sous réserve de la désignation d'un DPO et de la rédaction du registre des activités de traitement, qui relèvent de la gouvernance de la collectivité déployante et non de la plateforme elle-même. Les mesures techniques Privacy by Design sont intégrées dans l'architecture dès la conception.
 
 ---
 
