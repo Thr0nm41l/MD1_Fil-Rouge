@@ -461,5 +461,61 @@ Le socle technique du projet ECOTRACK est opérationnel et démontrable en live 
 
 ---
 
+## 7. Références bibliographiques
+
+### 7.1 Réglementation et cadre juridique
+
+- **Règlement (UE) 2016/679** du Parlement européen et du Conseil du 27 avril 2016 relatif à la protection des personnes physiques à l'égard du traitement des données à caractère personnel (RGPD). *Journal officiel de l'Union européenne*, L 119, 4 mai 2016. Disponible sur : eur-lex.europa.eu
+
+- **CNIL** — « Les bases légales du traitement de données personnelles ». Commission Nationale de l'Informatique et des Libertés, 2023. Disponible sur : cnil.fr/fr/les-bases-legales
+
+- **CNIL** — « Désigner un délégué à la protection des données (DPO) ». Commission Nationale de l'Informatique et des Libertés, 2023. Disponible sur : cnil.fr/fr/designer-un-delegue-la-protection-des-donnees-dpo
+
+- **CNIL** — Délibération n°2018-327 du 11 octobre 2018 portant adoption de la liste des types d'opérations de traitement pour lesquelles une analyse d'impact relative à la protection des données est requise. *Journal officiel*, 6 novembre 2018.
+
+- **EDPB** — « Guidelines 4/2019 on Article 25 Data Protection by Design and by Default ». European Data Protection Board, version adoptée le 20 octobre 2020. Disponible sur : edpb.europa.eu
+
+- **CNIL** — « La sécurité des données personnelles — Guide pratique ». Commission Nationale de l'Informatique et des Libertés, édition 2023. Disponible sur : cnil.fr/fr/la-securite-des-donnees-personnelles
+
+### 7.2 Architecture de données et technologies de stockage
+
+- **PostgreSQL Global Development Group** — *PostgreSQL 15 Documentation*. 2022. Disponible sur : postgresql.org/docs/15/
+
+- **PostGIS Project Steering Committee** — *PostGIS 3.3 Documentation*. 2022. Disponible sur : postgis.net/docs/
+
+- **Zaharia, M. et al.** — « Apache Spark: A Unified Engine for Big Data Processing ». *Communications of the ACM*, vol. 59, n°11, novembre 2016, pp. 56–65. doi:10.1145/2934664
+
+- **Kreps, J., Narkhede, N., Rao, J.** — « Kafka: a Distributed Messaging System for Log Processing ». *Proceedings of the NetDB Workshop*, 2011. Disponible sur : kafka.apache.org/documentation/
+
+- **TimescaleDB** — « TimescaleDB vs. PostgreSQL : compression and performance benchmarks ». Timescale Inc., 2023. Disponible sur : docs.timescale.com/use-timescale/latest/compression/
+
+### 7.3 Orchestration et pipeline de données
+
+- **Apache Airflow** — *Apache Airflow Documentation 2.x*. Apache Software Foundation, 2023. Disponible sur : airflow.apache.org/docs/
+
+- **Psycopg Team** — *Psycopg 2.9 Documentation — execute_values*. 2023. Disponible sur : psycopg.org/docs/extras.html
+
+### 7.4 Machine Learning et modèles prédictifs
+
+- **Pedregosa, F. et al.** — « Scikit-learn: Machine Learning in Python ». *Journal of Machine Learning Research*, vol. 12, 2011, pp. 2825–2830. Disponible sur : jmlr.org/papers/v12/pedregosa11a.html
+
+- **Ke, G. et al.** — « LightGBM: A Highly Efficient Gradient Boosting Decision Tree ». *Advances in Neural Information Processing Systems (NeurIPS)*, 2017, pp. 3149–3157. Disponible sur : papers.nips.cc/paper/2017/hash/6449f44a102fde848669bdd9eb6b76fa
+
+- **Friedman, J.H.** — « Greedy Function Approximation: A Gradient Boosting Machine ». *The Annals of Statistics*, vol. 29, n°5, 2001, pp. 1189–1232. doi:10.1214/aos/1013203451
+
+- **Scikit-learn Developers** — « HistGradientBoostingRegressor — User Guide ». scikit-learn 1.3, 2023. Disponible sur : scikit-learn.org/stable/modules/ensemble.html#histogram-based-gradient-boosting
+
+### 7.5 Visualisation, observabilité et API
+
+- **Grafana Labs** — *Grafana Documentation — Data sources: PostgreSQL & Prometheus*. 2023. Disponible sur : grafana.com/docs/grafana/latest/datasources/
+
+- **Prometheus Authors** — *Prometheus Documentation*. Cloud Native Computing Foundation, 2023. Disponible sur : prometheus.io/docs/introduction/overview/
+
+- **Ramírez, S.** — *FastAPI Documentation*. 2023. Disponible sur : fastapi.tiangolo.com
+
+- **Containous / Traefik Labs** — *Traefik v3 Documentation*. 2023. Disponible sur : doc.traefik.io/traefik/
+
+---
+
 *Rapport de soutenance — Filière M1 DATA & ANALYTICS*
-*Sources : `database/setup_complete.sql`, `dags/lasc__livesim_fill.py`, `dags/lasc__seed_data.py`, `documentation/helmcharts/k8s-architecture.md`, `documentation/ml/index.md`, `documentation/api/`, `context/master1_data_epics.md`, `context/master1_data_tasks.md`*
+*Sources internes : `database/setup_complete.sql`, `dags/lasc__livesim_fill.py`, `dags/lasc__seed_data.py`, `documentation/helmcharts/k8s-architecture.md`, `documentation/ml/index.md`, `documentation/api/`, `context/master1_data_epics.md`, `context/master1_data_tasks.md`*
