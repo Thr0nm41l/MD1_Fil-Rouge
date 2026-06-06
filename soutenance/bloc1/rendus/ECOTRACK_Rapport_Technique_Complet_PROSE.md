@@ -136,6 +136,28 @@ Cinq mesures techniques implémentent le principe de *Privacy by Design* (art. 2
 
 **Bilan légal :** CONFORME sous réserve de la désignation d'un DPO et de la rédaction du registre des activités de traitement, qui relèvent de la gouvernance de la collectivité déployante et non de la plateforme elle-même. Les mesures techniques Privacy by Design sont intégrées dans l'architecture dès la conception.
 
+#### 1.6.6 Accessibilité numérique — RGAA
+
+Le Référentiel Général d'Amélioration de l'Accessibilité (RGAA 4.1), issu de la loi du 11 février 2005 et rendu obligatoire pour les services numériques des organismes publics par le décret n°2019-768, impose la conformité aux critères WCAG 2.1 niveau AA. ECOTRACK, déployé pour le compte d'une collectivité locale, entre dans le champ d'application de cette obligation.
+
+Le frontend React d'ECOTRACK n'a pas fait l'objet d'un audit RGAA formel dans le périmètre du présent projet — cet audit représente un axe de progression post-soutenance. Les points de vigilance identifiés à l'architecture sont les suivants. Les cartes choroplèthes et heatmaps rendues via GeoJSON nécessitent des textes alternatifs et une alternative tabulaire pour les utilisateurs recourant à des technologies d'assistance. Les composants de tableau de bord Grafana, accessibles par les managers, doivent assurer une navigation au clavier complète et des ratios de contraste conformes (≥ 4,5:1 pour le texte normal, WCAG critère 1.4.3). L'API REST elle-même — stateless, sans interface graphique — n'est pas concernée par le RGAA ; la surface d'audit se restreint donc au frontend React et aux dashboards Grafana. La mise en conformité RGAA est estimée à 3 à 5 jours·homme d'audit et de corrections sur le seul frontend.
+
+### 1.7 RSE — Responsabilité Sociétale du Projet
+
+La Responsabilité Sociétale des Entreprises (RSE), encadrée en France par la loi Grenelle II et la norme ISO 26000, invite à évaluer l'impact d'un projet selon trois dimensions : sociale, environnementale et économique. ECOTRACK présente un profil RSE favorable sur ces trois axes.
+
+Sur la dimension **sociale**, la plateforme améliore directement la qualité du service public de gestion des déchets pour les habitants des 5 arrondissements couverts : la détection préventive des conteneurs en surcapacité réduit les débordements visibles dans l'espace public et les risques sanitaires associés. Le module de gamification — signalements citoyens récompensés en points, défis collectifs — mobilise les usagers comme acteurs du système plutôt que comme simples bénéficiaires passifs, renforçant la cohésion sociale autour d'un service commun. Sur la dimension **économique**, les économies opérationnelles estimées à §1.5.4 (~616 000 €/an) libèrent des ressources budgétaires que la collectivité peut réallouer à d'autres services publics, conformément à l'objectif de sobriété budgétaire des collectivités territoriales. Sur la dimension **gouvernance**, l'architecture open source (PostgreSQL, Airflow, FastAPI, Grafana) garantit l'indépendance technologique de la collectivité vis-à-vis de tout éditeur propriétaire, réduisant le risque de *vendor lock-in* et préservant la souveraineté numérique du service public.
+
+### 1.8 Green IT — Sobriété numérique
+
+La sobriété numérique — définie par l'ADEME et le collectif Green IT comme la démarche visant à réduire l'empreinte environnementale du numérique en évitant les surdimensionnements inutiles — est un critère structurant de l'architecture ECOTRACK, même si elle n'a pas été formalisée comme telle en phase de conception.
+
+Le premier levier de sobriété est l'**éviction délibérée de la stack Big Data**. Retenir Kafka (3 brokers + ZooKeeper), Spark (3 workers) et MinIO pour un volume de 18 M lignes/an aurait représenté une consommation mémoire et CPU environ 4 à 6 fois supérieure à la stack retenue, pour un résultat fonctionnel identique. Le choix PostgreSQL + Airflow + procédures stockées minimise le nombre de processus actifs sur le cluster et réduit mécaniquement la consommation électrique de l'infrastructure. Le deuxième levier est le **partitionnement par plages temporelles** de `fill_history` : les 36 partitions mensuelles permettent au moteur de n'activer (partition pruning) que les blocs de données strictement nécessaires à chaque requête, réduisant les lectures disque inutiles. Le troisième levier est la **colocalisation calcul-donnée** via les procédures stockées PostgreSQL : `aggregate_hourly()` et `aggregate_daily()` s'exécutent dans le même processus que la base, sans transfert réseau entre un worker distant et le moteur de données — un gain énergétique direct par rapport à un pipeline Spark soumettant des jobs via réseau. Enfin, Grafana interroge PostgreSQL directement par requête SQL sans couche de cache ou d'agrégation intermédiaire supplémentaire, limitant le nombre de composants actifs en permanence dans le namespace `monitoring`.
+
+L'empreinte carbone opérationnelle du cluster Minikube en développement local est nulle au sens de l'infrastructure cloud additionnelle. En production sur Scaleway (datacenter certifié ISO 50001, PUE ≤ 1,3, alimentation en énergie renouvelable à 100 %), la consommation estimée du cluster (3 nœuds, ~350 W de charge moyenne) représente environ **2,5 à 3 MWh/an**, soit une empreinte carbone de l'ordre de **0,1 à 0,15 tCO₂eq/an** (facteur d'émission Scaleway DC Paris ~40 gCO₂eq/kWh). À titre de comparaison, l'économie de 1 215 trajets de camion benne annuels évités par l'optimisation des tournées représente une réduction d'environ **24 tCO₂eq/an** (camion diesel Euro VI, ~20 kgCO₂/trajet de 10 km), soit un ratio d'impact positif de l'ordre de **160:1** par rapport à l'empreinte numérique de la plateforme.
+
+**Bilan sobriété numérique :** L'empreinte numérique d'ECOTRACK est structurellement contenue par les choix d'architecture (stack minimale, procédures stockées, partition pruning). L'impact environnemental net du déploiement est largement positif : chaque tonne de CO₂ générée par l'infrastructure est compensée par environ 160 tonnes évitées grâce à l'optimisation des tournées.
+
 ---
 
 ## 2. Veille Technologique et Choix de Stack
@@ -477,6 +499,12 @@ Le socle technique du projet ECOTRACK est opérationnel et démontrable en live 
 
 - **CNIL** — « La sécurité des données personnelles — Guide pratique ». Commission Nationale de l'Informatique et des Libertés, édition 2023. Disponible sur : cnil.fr/fr/la-securite-des-donnees-personnelles
 
+- **DINUM** — *Référentiel Général d'Amélioration de l'Accessibilité (RGAA) version 4.1*. Direction Interministérielle du Numérique, 2021. Disponible sur : accessibilite.numerique.gouv.fr
+
+- **Décret n°2019-768** du 24 juillet 2019 relatif à l'accessibilité aux personnes handicapées des services de communication au public en ligne. *Journal officiel de la République française*, 26 juillet 2019.
+
+- **W3C Web Accessibility Initiative** — *Web Content Accessibility Guidelines (WCAG) 2.1*. W3C Recommendation, 5 juin 2018. Disponible sur : w3.org/TR/WCAG21/
+
 ### 7.2 Architecture de données et technologies de stockage
 
 - **PostgreSQL Global Development Group** — *PostgreSQL 15 Documentation*. 2022. Disponible sur : postgresql.org/docs/15/
@@ -505,7 +533,19 @@ Le socle technique du projet ECOTRACK est opérationnel et démontrable en live 
 
 - **Scikit-learn Developers** — « HistGradientBoostingRegressor — User Guide ». scikit-learn 1.3, 2023. Disponible sur : scikit-learn.org/stable/modules/ensemble.html#histogram-based-gradient-boosting
 
-### 7.5 Visualisation, observabilité et API
+### 7.5 RSE et sobriété numérique
+
+- **ISO** — *Norme ISO 26000:2010 — Lignes directrices relatives à la responsabilité sociétale*. Organisation Internationale de Normalisation, 2010. Disponible sur : iso.org/fr/standard/42546.html
+
+- **Loi n°2010-788** du 12 juillet 2010 portant engagement national pour l'environnement (Loi Grenelle II). *Journal officiel de la République française*, 13 juillet 2010.
+
+- **ADEME** — *La face cachée du numérique — Réduire les impacts du numérique sur l'environnement*. Agence de la transition écologique, édition 2021. Disponible sur : ademe.fr/mediatheque/
+
+- **Collectif Green IT** — *Sobriété numérique : les clés pour agir*. Green IT, 2022. Disponible sur : greenit.fr/ressources/
+
+- **ADEME / ARCEP** — *Évaluation de l'impact environnemental du numérique en France et analyse prospective*. Rapport conjoint, janvier 2023. Disponible sur : arcep.fr/uploads/tx_gspublication/Etude_ADEME-Arcep_2023.pdf
+
+### 7.6 Visualisation, observabilité et API
 
 - **Grafana Labs** — *Grafana Documentation — Data sources: PostgreSQL & Prometheus*. 2023. Disponible sur : grafana.com/docs/grafana/latest/datasources/
 
