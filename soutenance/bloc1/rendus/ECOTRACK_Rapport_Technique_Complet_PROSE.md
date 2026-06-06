@@ -377,9 +377,19 @@ Cinq triggers automatisent la logique métier directement dans la base. Le trigg
 
 ## 5. Planification Agile et Livrables
 
-### 5.1 Organisation hybride Scrum + Epics
+### 5.1 Méthodes d'idéation et organisation Scrum
 
-Le projet s'organise selon une méthodologie hybride Scrum couvrant 16 semaines, soit 8 sprints de 2 semaines. Le backlog total compte 115 tâches réparties en 11 Epics fonctionnels. Les livraisons jalons ont été calées sur les sprints clés : L1 en S2, L2 en S4, L3 en S8, L4 en S12 et le livrable final en S16. La priorisation des tâches s'appuie sur une matrice MUST/SHOULD par catégorie, et chaque tâche est associée à un critère de validation mesurable (par exemple `SELECT PostGIS_Version()` ou R² > 0,65).
+#### 5.1.1 Contexte métier et écosystème urbain
+
+ECOTRACK s'inscrit dans le secteur des **smart cities** et de la gestion des services urbains pilotés par la donnée — un domaine en forte croissance où les métropoles françaises (Lyon, Bordeaux, Rennes) investissent massivement depuis 2018 dans l'instrumentation IoT de leurs équipements publics. Le contexte opérationnel est celui d'une **collectivité territoriale** : la Métropole de Lyon administre la collecte des déchets sur 59 communes pour ~1,4 million d'habitants, avec une contrainte forte de sobriété budgétaire (budget collecte déchets ménagers en hausse de 15 % sur 5 ans selon les rapports de la Cour des comptes régionale). Ce contexte impose trois spécificités qui ont structuré la démarche d'idéation : des utilisateurs multiples aux profils très différents (agents de terrain, managers de zone, citoyens, data analysts), une obligation de conformité RGPD/RGAA stricte pour tout service numérique public, et une contrainte de coût d'exploitation qui exclut d'emblée les stacks Big Data surdimensionnées.
+
+#### 5.1.2 Démarche d'idéation — du CDC aux User Stories
+
+La formalisation des besoins s'est appuyée sur une démarche en quatre étapes. La première est l'**analyse du CDC** (Cahier des Charges institutionnel fourni par l'école) : lecture transversale pour identifier les 115 tâches fonctionnelles et les regrouper par domaine métier. La deuxième est l'**Epic Mapping** — technique issue du *User Story Mapping* (Patton, 2014) — consistant à organiser les tâches selon un axe horizontal représentant le flux métier (données brutes → agrégation → API → visualisation → ML) et un axe vertical représentant la valeur décroissante (MUST → SHOULD → COULD). Ce mapping a produit les 11 Epics fonctionnels (E1 à E11) documentés dans `context/master1_data_epics.md`. La troisième étape est la **priorisation MoSCoW** : chaque tâche est classée MUST (livraison bloquante pour la soutenance) ou SHOULD (valeur ajoutée si le temps le permet), avec un critère de validation mesurable associé — par exemple `SELECT PostGIS_Version()` pour E2, ou CV R² ≥ 0,65 pour E10. La quatrième étape est la **formalization Scrum** des user stories au format canonique *« En tant que [rôle], je veux [action] afin de [bénéfice] »*, avec un critère d'acceptation technique précis, garantissant que chaque story est testable indépendamment.
+
+#### 5.1.3 Organisation hybride Scrum + Epics
+
+Le projet s'organise selon une méthodologie hybride Scrum couvrant 16 semaines, soit 8 sprints de 2 semaines. Le backlog total compte 115 tâches réparties en 11 Epics fonctionnels. Les livraisons jalons ont été calées sur les sprints clés : L1 en S2, L2 en S4, L3 en S8, L4 en S12 et le livrable final en S16. La priorisation des tâches s'appuie sur la matrice MUST/SHOULD décrite ci-dessus, et chaque tâche est associée à un critère de validation mesurable.
 
 Le découpage par **Epic fonctionnel** reflète les dépendances techniques réelles : E1 (BDD) est prérequis pour E2 (PostGIS), qui l'est pour E3 (Conteneurs/API), etc. Le mapping Epic → Sprint est documenté dans `context/master1_data_epics.md`.
 
@@ -533,7 +543,15 @@ Le socle technique du projet ECOTRACK est opérationnel et démontrable en live 
 
 - **Scikit-learn Developers** — « HistGradientBoostingRegressor — User Guide ». scikit-learn 1.3, 2023. Disponible sur : scikit-learn.org/stable/modules/ensemble.html#histogram-based-gradient-boosting
 
-### 7.5 RSE et sobriété numérique
+### 7.5 Gestion de projet et méthodes
+
+- **Patton, J.** — *User Story Mapping: Discover the Whole Story, Build the Right Product*. O'Reilly Media, 2014. ISBN 978-1-4920-5093-7.
+
+- **Schwaber, K., Sutherland, J.** — *The Scrum Guide — The Definitive Guide to Scrum: The Rules of the Game*. Scrum.org, novembre 2020. Disponible sur : scrumguides.org
+
+- **Cohn, M.** — *User Stories Applied: For Agile Software Development*. Addison-Wesley, 2004. ISBN 978-0-3211-9368-1.
+
+### 7.6 RSE et sobriété numérique
 
 - **ISO** — *Norme ISO 26000:2010 — Lignes directrices relatives à la responsabilité sociétale*. Organisation Internationale de Normalisation, 2010. Disponible sur : iso.org/fr/standard/42546.html
 
