@@ -34,6 +34,7 @@ nav:
     - History & Routes: api/phase2-history-routes.md
     - Analytics: api/phase3-analytics.md
     - Gamification, ML & Reports: api/phase4-gamification-ml-reports.md
+    - Test Suite: tests/index.md
   - Machine Learning:
     - Overview: ml/index.md
   - Helmcharts:

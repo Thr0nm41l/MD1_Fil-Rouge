@@ -129,6 +129,28 @@ Le projet implémente un Lakehouse sur PostgreSQL 15 en s'appuyant sur trois arg
 
 Le mapping entre la logique Lakehouse et l'implémentation PostgreSQL s'effectue sur trois niveaux. La couche **Bronze**, correspondant aux données brutes et immuables, est portée par la table `fill_history PARTITION BY RANGE (measured_at)` : elle reçoit les mesures IoT telles quelles, avec leur flag `is_outlier`, et n'est jamais modifiée après insertion. La couche **Silver**, dédiée au nettoyage et à l'enrichissement, n'existe pas comme table matérialisée distincte : elle est appliquée dynamiquement à l'agrégation par le filtre `WHERE NOT is_outlier AND c.is_active = true`, complété par l'enrichissement géospatial assuré en amont par le trigger `containers_assign_zone`. Ce choix d'une Silver Layer implicite élimine un étage ETL et une table supplémentaire sans perte de traçabilité, puisque les données brutes restent intactes dans la couche Bronze. La couche **Gold**, correspondant aux données agrégées prêtes pour l'exposition métier, regroupe `aggregated_hourly_stats`, `aggregated_daily_stats` et `ml_predictions` : ces tables sont alimentées par des upserts idempotents `ON CONFLICT DO UPDATE` et consommées directement par les endpoints FastAPI `/analytics/*` et les datasources Grafana.
 
+#### Positionnement vis-à-vis des technologies NoSQL et du stockage distribué
+
+Le stack ECOTRACK intègre trois composants relevant explicitement des technologies de stockage non-relationnel et distribué, chacun retenu pour un périmètre fonctionnel précis.
+
+**Redis — base NoSQL clé-valeur en mémoire.** Redis est déployé dans le namespace `airflow` comme broker de tâches Celery (Helm release `apache/airflow`, configuration `executor: CeleryExecutor`). Il assure la distribution des tâches entre le scheduler Airflow et les deux workers, en stockant les messages de file d'attente dans une structure clé-valeur en mémoire avec persistance optionnelle. Ce rôle correspond exactement au cas d'usage de prédilection d'une base NoSQL : accès ultra-rapide (< 1 ms) à des objets éphémères non relationnels, sans schéma fixe, avec une tolérance aux écritures concurrentes. Un Redis tombé en panne bloque immédiatement les deux workers Celery — sa disponibilité est une dépendance critique du pipeline ETL continu `lasc__livesim_fill`.
+
+**Apache Parquet — format de stockage columnar distribué.** Le Feature Store ML est matérialisé par le fichier `ml/data/training_features.parquet` (2 265 488 lignes × 14 features, ~150 Mo). Le format Apache Parquet est le standard de facto des architectures Data Lake distribuées (Delta Lake, Apache Iceberg, AWS Glue) : il organise les données par colonnes plutôt que par lignes, compresse chaque colonne selon son type (`SNAPPY` pour les numériques, `ZSTD` pour les chaînes), et expose des métadonnées de schéma (`pyarrow.Schema`) permettant au lecteur de ne charger que les colonnes nécessaires. Dans un contexte distribué (Spark, Dask), ce fichier serait partitionné par `container_id` ou `measured_at` et distribué sur plusieurs nœuds de calcul sans modification du code applicatif. Son exploitation dans les notebooks (`pd.read_parquet()`) est donc architecturalement compatible avec un déploiement distribué futur.
+
+**PostgreSQL partitionné — équivalent fonctionnel d'un stockage distribué sur séries temporelles.** La table `fill_history PARTITION BY RANGE (measured_at)` implémente une logique de distribution des données proche de celle d'un système comme Cassandra ou TimescaleDB pour les séries temporelles : les 36 partitions mensuelles isolent physiquement les données par période, permettant au planificateur de requêtes d'éliminer les partitions hors plage (partition pruning) et d'exécuter des agrégations parallèles sur plusieurs partitions. Sur un cluster PostgreSQL multi-nœuds (Citus, CloudNativePG), ces partitions seraient distribuées sur des shards physiques distincts sans modification du schéma.
+
+#### Alternatives NoSQL et distribuées évaluées et rejetées
+
+Quatre technologies ont été explicitement évaluées avant de confirmer le choix PostgreSQL + Parquet.
+
+**TimescaleDB** est une extension PostgreSQL spécialisée pour les séries temporelles : elle crée automatiquement des hypertables partitionnées, compresse les chunks anciens (ratio 10:1 documenté) et expose des fonctions de fenêtrage temporel optimisées. Son adoption aurait réduit le code de partitionnement manuel dans `setup_complete.sql`. Elle a été rejetée pour deux raisons : le volume de 18 M lignes/an ne génère pas de contention de compression qui justifierait la complexité d'installation d'une extension supplémentaire dans le Helm chart PostgreSQL bitnami, et la tâche `BDD5` spécifie explicitement PostgreSQL 15 sans extension additionnelle obligatoire.
+
+**Delta Lake / Apache Iceberg** sont les formats de stockage de référence pour les Data Lakehouses distribués sur HDFS ou S3. Delta Lake apporte le versionnement des données (time travel), les transactions ACID sur fichiers Parquet, et la gestion des schémas évolutifs. Ces fonctionnalités deviendraient pertinentes si ECOTRACK devait gérer plusieurs versions du Feature Store (re-entraînements successifs) ou répondre à des audits nécessitant de rejouer les prédictions sur des données historiques. Sur 2 Go de données actives, le surcoût d'un runtime Spark (minimum 4 Go RAM, 3 nœuds) pour accéder aux fichiers Delta est disproportionné — le Feature Store Parquet simple remplit le même rôle à fraction du coût opérationnel.
+
+**MinIO (stockage objet S3-compatible)** aurait permis de créer une couche Bronze externe en Parquet, découplant physiquement l'ingestion (Airflow → MinIO) du traitement (PostgreSQL). Ce pattern est standard dans les architectures Big Data dépassant le téraoctet. Sur le périmètre ECOTRACK, il aurait introduit une deuxième source de vérité (MinIO pour le brut, PostgreSQL pour l'opérationnel) sans résoudre le problème d'idempotence des DAGs — PostgreSQL avec `ON CONFLICT DO NOTHING` assure cette garantie nativement là où MinIO ne propose pas de primitive d'unicité sur les objets.
+
+**MongoDB** aurait été pertinent pour stocker les signalements citoyens (structure semi-libre, texte non normalisé) et les configurations de dashboard (JSON arbitraire). Sa flexibilité de schéma est cependant superflue ici : les signalements ont une structure fixe (`description VARCHAR`, `status ENUM`, horodatages) et les configurations de dashboard sont stockées en `JSONB` PostgreSQL — un type natif qui supporte l'indexation GIN sur les clés JSON et les opérateurs `@>`, `?` comparables aux capacités de requêtage MongoDB.
+
 ---
 
 ## 3. Architecture Data
@@ -551,9 +573,9 @@ L'API REST ECOTRACK est construite sur **FastAPI** avec validation Pydantic v2, 
 
 L'API expose neuf routers couvrant l'ensemble des épics fonctionnels, avec des niveaux d'implémentation différenciés.
 
-Cinq routers sont entièrement opérationnels. Le router `containers` regroupe les endpoints C1 à C20 : CRUD complet, filtres géospatiaux par zone via `ST_Within`, statut en temps réel depuis `containers.fill_rate`. Le router `zones` expose Z1 à Z5 : CRUD et export GeoJSON via `ST_AsGeoJSON(polygon)`. Le router `history` couvre H5 à H7 : série temporelle par conteneur depuis `fill_history` avec pagination `LIMIT/OFFSET`, agrégats depuis `aggregated_hourly_stats`. Le router `routes` expose T1 à T9 : CRUD sur les tournées et leurs étapes, calcul de distance via `ST_Length(path::geography)`. Le router `analytics` regroupe A1 à A10 ainsi que les KPIs, la heatmap et la choroplèthe — c'est le router le plus riche, qui expose l'ensemble des indicateurs décisionnels destinés aux managers.
+Six routers sont entièrement opérationnels. Le router `containers` regroupe les endpoints C1 à C20 : CRUD complet, filtres géospatiaux par zone via `ST_Within`, statut en temps réel depuis `containers.fill_rate`. Le router `zones` expose Z1 à Z5 : CRUD et export GeoJSON via `ST_AsGeoJSON(polygon)`. Le router `history` couvre H5 à H7 : série temporelle par conteneur depuis `fill_history` avec pagination `LIMIT/OFFSET`, agrégats depuis `aggregated_hourly_stats`. Le router `routes` expose T1 à T9 : CRUD sur les tournées et leurs étapes, calcul de distance via `ST_Length(path::geography)`. Le router `analytics` regroupe A1 à A10 ainsi que les KPIs, la heatmap et la choroplèthe — c'est le router le plus riche, qui expose l'ensemble des indicateurs décisionnels destinés aux managers. Le router `reports` expose R4 (`POST /reports/generate`) et R5 (`GET /reports/{id}/download`) avec génération asynchrone via `BackgroundTasks` FastAPI : la demande est insérée dans la table `reports` avec le statut `pending`, la génération s'exécute en arrière-plan (`processing` → `ready` ou `error`), puis le fichier est retourné via `FileResponse`. Deux formats sont disponibles : PDF via `reportlab` (table KPI avec en-tête `#2d6a4f`, tableau Top Zones par volume collecté) et Excel via `openpyxl` (feuille Summary + feuille Zones).
 
-Trois routers sont en implémentation partielle. Le router `dashboard` couvre DA3 à DA5 (layout config, KPI cards, export snapshot) et est opérationnel sur ses endpoints principaux. Le router `gamification` expose GAM3 à GAM11 en stubs : l'architecture SQL est entièrement posée (tables `user_points`, `badges`, `user_badges`, `defis`, `defi_participations`), mais les handlers Python renvoient des réponses statiques. Le router `reports` expose R4 et R5 en stubs avec `reportlab` déjà dans les requirements, en attente du câblage de la génération PDF.
+Deux routers sont en implémentation partielle. Le router `dashboard` couvre DA3 à DA5 (layout config, KPI cards, export snapshot) et est opérationnel sur ses endpoints principaux. Le router `gamification` expose GAM3 à GAM11 en stubs : l'architecture SQL est entièrement posée (tables `user_points`, `badges`, `user_badges`, `defis`, `defi_participations`), mais les handlers Python renvoient des réponses statiques.
 
 Un router reste en stub fonctionnel. Le router `ml` expose l'endpoint ML5 `POST /ml/predict` avec une réponse HTTP 503 — le modèle `model.pkl` est disponible dans `ml/models/`, mais son intégration dans le container Docker nécessite une instruction `COPY` dans le Dockerfile et un `kubectl rollout restart` du déploiement.
 
@@ -623,6 +645,36 @@ La séparation des audiences est nette : Grafana adresse les équipes ops et inf
 
 Le site `http://docs.localhost` (namespace `documentation`) centralise la documentation technique complète : chaque DAG (graphes, paramètres, notes de runtime), chaque phase de l'API (endpoints, exemples curl), l'architecture K8s (topologie, DNS, PVCs), le schéma de base de données (26 tables, index, triggers), et les notebooks ML (ROADMAP, retraining checklist). Cette documentation "as code" constitue un actif de valeur pour la maintenance et l'onboarding de nouveaux membres.
 
+### 6.3 Génération de rapports structurés
+
+#### Architecture de génération asynchrone
+
+Le router `reports` implémente un pattern de génération asynchrone découplée adapté aux rapports de volume variable. `POST /reports/generate` accepte la demande et retourne immédiatement `HTTP 202 Accepted` avec le `report_id`, tandis que `GET /reports/{id}/download` livre le fichier une fois la génération terminée. Ce découplage évite le timeout HTTP sur les rapports couvrant de longues périodes ou plusieurs zones.
+
+Le cycle de vie d'un rapport est entièrement tracé dans la table `reports` : `pending` (demande reçue), `processing` (génération en cours), `ready` (fichier disponible) ou `error` (exception capturée). Le background task `_generate_report()` exécute trois étapes — mise à jour du statut, appel à `_fetch_summary()`, construction du fichier — avec gestion des exceptions garantissant que le statut `error` est toujours persisté.
+
+#### Formats et segmentation
+
+Deux formats sont disponibles selon le contexte d'utilisation :
+
+**PDF via `reportlab`** : document A4 structuré avec en-tête de période, table KPI à 5 lignes (conteneurs actifs, collectes, volume, taux de remplissage moyen, débordements) avec en-tête vert `#2d6a4f` et alternance de lignes, suivi d'un tableau Top Zones classé par volume collecté. La mise en page fixe garantit la reproductibilité entre périodes et facilite la comparaison.
+
+**Excel via `openpyxl`** : classeur à deux feuilles — `Summary` (métadonnées + KPIs en tableau formaté) et `Zones` (détail par zone avec en-têtes colorés). Ce format est conçu pour les managers qui souhaitent effectuer des calculs additionnels ou intégrer les données dans leurs propres outils.
+
+#### Segmentation et organisation
+
+Les rapports peuvent être filtrés selon trois axes de segmentation, satisfaisant l'exigence de « moyens de segmentation et d'organisation » de la compétence :
+
+- **Par type de rapport** (`report_type`) : `monthly` (mois courant par défaut), `weekly` (7 derniers jours), ou période personnalisée via `period_start` / `period_end`
+- **Par zone géographique** (`zone_id`) : filtrage optionnel sur l'un des 5 arrondissements — `_fetch_summary()` adapte dynamiquement le prédicat SQL `AND zone_id = %(zone_id)s` sur les tables `collections` et `aggregated_daily_stats`
+- **Par utilisateur** (`user_id`) : traçabilité de chaque demande pour l'audit, avec RLS applicable si nécessaire
+
+Les KPIs agrégés (`active_containers`, `collection_count`, `volume_l`, `avg_fill_rate`, `overflow_count`, `top_zones`) sont extraits depuis les tables Gold `aggregated_daily_stats` et la table transactionnelle `collections`, assurant la cohérence avec les dashboards Grafana et les endpoints analytics. Les rapports PDF/Excel constituent la forme archivable et exportable complémentaire aux dashboards temps réel : là où Grafana présente une vue dynamique, les rapports formalisent une synthèse périodique destinée à être transmise ou conservée.
+
+#### Limite connue — persistance des fichiers
+
+Les fichiers générés sont stockés dans `REPORTS_DIR` (défaut : `/tmp/reports` dans le pod Kubernetes). Ce répertoire est local au pod et **non persisté sur un volume dédié** : un redémarrage du pod `apiservice` efface les fichiers existants. Si `GET /reports/{id}/download` est appelé après un redémarrage, le statut en base reste `ready` mais le fichier est absent — l'endpoint retourne alors `500 "Report file missing from storage"`. Pour une mise en production, la correction consiste à monter un PVC sur `REPORTS_DIR` ou à écrire les fichiers dans un stockage objet (MinIO, S3) et à stocker l'URL plutôt que le chemin local dans `reports.file_path`.
+
 ---
 
 ## 7. Conclusion et Perspectives
@@ -635,7 +687,7 @@ Le projet ECOTRACK a livré un système data opérationnel et démontrable en li
 
 **Architecture data :** Lakehouse natif PostgreSQL 15 — couches Bronze/Silver/Gold sans stack objet additionnel, 26 tables (17 OLTP + 4 OLAP + 5 gamification), 7 triggers automatisant la logique métier, 5 procédures stockées idempotentes, PostGIS opérationnel avec GIST indexes et requêtes spatiales en < 200 ms.
 
-**API et analytique :** 40+ endpoints FastAPI dont 7 routers entièrement opérationnels, documentation Swagger auto-générée, 10 endpoints analytics (heatmap, choroplèthe, KPIs, ROI environnemental), dashboards Grafana avec datasource PostgreSQL native.
+**API et analytique :** 40+ endpoints FastAPI dont 6 routers entièrement opérationnels (containers, zones, history, routes, analytics, reports), documentation Swagger auto-générée, 10 endpoints analytics (heatmap, choroplèthe, KPIs, ROI environnemental), génération de rapports PDF/Excel asynchrone, dashboards Grafana avec datasource PostgreSQL native.
 
 **Machine Learning :** HistGradientBoosting entraîné sur 2,265 M lignes, 14 features, CV R² = 0.673 (seuil CDC ≥ 0.65 atteint en validation croisée temporelle), diagnostic complet de l'écart CV/test avec correctif implémentable documenté.
 
@@ -643,7 +695,7 @@ Le projet ECOTRACK a livré un système data opérationnel et démontrable en li
 
 **Limite principale — Test R² sous cible (0.218 vs 0.65) :** l'écart entre le CV R² (0.673) et le test R² (0.218) est structurel, causé par deux problèmes identifiés et documentés : 5 features temporelles sur 14 portent un signal nul dans les données simulées, et la distribution entre `lasc__seed_data` (rampes linéaires, train set) et `lasc__livesim_fill` (marches aléatoires, test set) est fondamentalement différente. Cette limite est une **découverte méthodologique** : le projet a produit une analyse causale complète avec correctif prêt en moins d'une journée de développement.
 
-**Limite fonctionnelle — Phase 4 incomplète :** les fonctionnalités gamification (`/leaderboard`, `/badges`, `/defis`), reports (`POST /reports/generate`) et prédiction ML (`/ml/predict`) sont en stub. Leur architecture SQL est entièrement posée — la complétion est une question de temps de développement, pas de décision technique.
+**Limite fonctionnelle — Phase 4 incomplète :** les fonctionnalités gamification (`/leaderboard`, `/badges`, `/defis`) et la prédiction ML (`/ml/predict`) sont en stub. Leur architecture SQL est entièrement posée — la complétion est une question de temps de développement, pas de décision technique.
 
 **Limite infrastructure — Minikube local :** l'infrastructure est validée sur Minikube. Un déploiement cloud multi-nœuds nécessiterait la migration des PVCs `hostPath` vers des volumes persistants gérés et la configuration de la haute disponibilité PostgreSQL.
 
@@ -668,7 +720,7 @@ GitHub Actions workflow : build image Docker → push registry → `kubectl roll
 
 **Axe 4 — Fonctionnalités en retard :**
 
-L'activation de `GET /leaderboard` représente 1 à 2 heures de travail — la fonction SQL est déjà écrite dans le schéma, seul le handler FastAPI reste à câbler. La génération de rapports PDF via `POST /reports/generate` est estimée à 4 à 8 heures, `reportlab` étant déjà référencé dans les requirements du service. L'activation de `POST /ml/predict` est évaluée à 2 heures — elle consiste à copier `model.pkl` dans le container Docker via une instruction `COPY` dans le Dockerfile et à remplacer la réponse stub 503 par le pipeline d'inférence documenté dans `ml/ROADMAP.md §ML5`. Enfin, la mise en place des tests Pytest de l'Epic E11 représente 2 à 3 jours de développement pour atteindre une couverture supérieure à 50 %, seuil requis par le CDC.
+L'activation de `GET /leaderboard` représente 1 à 2 heures de travail — la fonction SQL est déjà écrite dans le schéma, seul le handler FastAPI reste à câbler. L'activation de `POST /ml/predict` est évaluée à 2 heures — elle consiste à copier `model.pkl` dans le container Docker via une instruction `COPY` dans le Dockerfile et à remplacer la réponse stub 503 par le pipeline d'inférence documenté dans `ml/ROADMAP.md §ML5`. Enfin, la mise en place des tests Pytest de l'Epic E11 représente 2 à 3 jours de développement pour atteindre une couverture supérieure à 50 %, seuil requis par le CDC.
 
 **Axe 5 — Scalabilité :**
 - CloudNativePG pour PostgreSQL HA (streaming replication Kubernetes-native)

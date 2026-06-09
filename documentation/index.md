@@ -47,6 +47,16 @@ Predictive fill-rate model (24h horizon) powering the `/ml/predict` endpoint.
 
 ---
 
+### Test Suite
+
+58 pytest tests covering API contract, data quality, pipeline idempotence, schema integrity, and ML model conformance.
+
+| Document | Contents |
+|---|---|
+| [Test Suite Overview](tests/index.md) | Fixture design, test inventory per file, CDC coverage map, known limitations |
+
+---
+
 ### Data Pipelines (DAGs)
 
 Airflow DAGs running on the `feature/serviceAPI` branch, synced via git-sync every 30 seconds.
