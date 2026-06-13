@@ -2,6 +2,7 @@
 ### DAG : test__seed_data.py
 
 ## Tasks :
+- seed_lookup_tables: Re-seeds role and container_type static data (safe after a nuke)
 - seed_data: Seeds the database with initial data
 
 ## Data generaton:
@@ -589,6 +590,31 @@ def seed_signalements(cur, containers: List[dict], users: dict) -> None:
     log(f"  → {len(rows)} signalements")
 
 
+def seed_lookup_tables(cur) -> None:
+    """
+    Re-insert the static rows that setup_complete.sql normally seeds.
+    Uses ON CONFLICT DO NOTHING — safe to run on a populated or freshly nuked DB.
+    Must run before seed_roles (reads public.role) and seed_containers (FK to container_type).
+    """
+    log("Seeding lookup tables (role, container_type)...")
+    cur.execute("""
+        INSERT INTO public.role (name) VALUES
+            ('User'), ('Worker'), ('Manager'), ('Admin')
+        ON CONFLICT DO NOTHING
+    """)
+    cur.execute("""
+        INSERT INTO public.container_type (name, description, fill_threshold_pct) VALUES
+            ('Verre',     'Bouteilles et bocaux en verre',            80.00),
+            ('Plastique', 'Emballages plastiques et PET',             70.00),
+            ('Papier',    'Papier, carton et journaux',               75.00),
+            ('Organique', 'Déchets alimentaires et de jardin',        65.00),
+            ('Général',   'Ordures ménagères non triées',             70.00),
+            ('Métal',     'Canettes, boîtes de conserve, ferraille',  80.00)
+        ON CONFLICT DO NOTHING
+    """)
+    log("  → role (4 rows) and container_type (6 rows) ready")
+
+
 def run_aggregations(cur) -> None:
     """
     Call aggregate_daily and aggregate_hourly for every day/hour in the history window.
@@ -781,6 +807,19 @@ def task_seed_signalements(**context) -> None:
         conn.close()
 
 
+def task_seed_lookup_tables(**context) -> None:
+    conn = _get_conn(context["params"])
+    try:
+        with conn.cursor() as cur:
+            seed_lookup_tables(cur)
+        conn.commit()
+    except Exception:
+        conn.rollback()
+        raise
+    finally:
+        conn.close()
+
+
 def task_run_aggregations(**context) -> None:
     conn = _get_conn(context["params"])
     try:
@@ -822,6 +861,12 @@ with DAG(
 ) as dag:
 
     start_task = EmptyOperator(task_id="start", task_display_name="Start")
+
+    seed_lookup_tables_task = PythonOperator(
+        task_id="seed_lookup_tables",
+        task_display_name="Seed Lookup Tables",
+        python_callable=task_seed_lookup_tables,
+    )
 
     seed_zones_task = PythonOperator(
         task_id="seed_zones",
@@ -886,7 +931,7 @@ with DAG(
     )
 
 # Dependency graph
-start_task >> [check_skip_users_task, seed_zones_task]
+start_task >> seed_lookup_tables_task >> [check_skip_users_task, seed_zones_task]
 check_skip_users_task >> seed_users_task >> seed_roles_task
 [seed_zones_task, seed_users_task] >> seed_teams_task
 seed_zones_task >> seed_containers_task >> seed_devices_task

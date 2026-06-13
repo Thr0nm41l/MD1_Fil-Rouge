@@ -43,21 +43,21 @@ All inserts use `ON CONFLICT DO NOTHING / DO UPDATE` — the DAG is safe to re-r
 ## Task Graph
 
 ```
-start
-  ├── check_skip_users ──► seed_users ──► seed_roles
-  │         │                   │
-  │    (skips if                └──────────────────► seed_teams
-  │   skip_users=true)
-  │
-  └── seed_zones ──► seed_containers ──► seed_devices ──► seed_fill_history
-                                                                  │
-                                                         seed_collections (*)
-                                                                  │
-                                                         seed_signalements (*)
-                                                                  │
-                                                          run_aggregations
-                                                                  │
-                                                             end (ALL_DONE)
+start ──► seed_lookup_tables
+                │
+          ┌─────┴──────────────────────────┐
+          │                                │
+   check_skip_users                   seed_zones
+          │                                │
+    (skips if                    seed_containers ──► seed_devices ──► seed_fill_history
+   skip_users=true)                                                          │
+          │                                                       seed_collections (*)
+          ▼                                                                  │
+     seed_users ──► seed_roles                                   seed_signalements (*)
+          │                                                                  │
+          └──────────────────► seed_teams                         run_aggregations
+                                                                             │
+                                                                        end (ALL_DONE)
 ```
 
 (*) Returns early without inserting if users were skipped.
@@ -68,6 +68,15 @@ start
 
 ### `start`
 Empty marker task. Entry point of the DAG.
+
+---
+
+### `seed_lookup_tables`
+**Operator:** `PythonOperator`
+
+Re-inserts the static rows that `setup_complete.sql` normally seeds into `public.role` (4 rows: User, Worker, Manager, Admin) and `public.container_type` (6 rows: Verre, Plastique, Papier, Organique, Général, Métal). All inserts use `ON CONFLICT DO NOTHING`, so this task is a no-op on a database that already has this data.
+
+This task exists because `masc__nuke_database` truncates every table including these lookup tables. Without it, `seed_roles` would fail with `KeyError` when reading from an empty `public.role`, and `seed_containers` would insert rows with invalid `type_id` foreign keys.
 
 ---
 
@@ -240,7 +249,7 @@ Empty marker task. `TriggerRule.ALL_DONE` — runs regardless of upstream skip s
 ## Dependencies
 
 ```
-start >> [check_skip_users, seed_zones]
+start >> seed_lookup_tables >> [check_skip_users, seed_zones]
 check_skip_users >> seed_users >> seed_roles
 [seed_zones, seed_users] >> seed_teams
 seed_zones >> seed_containers >> seed_devices
