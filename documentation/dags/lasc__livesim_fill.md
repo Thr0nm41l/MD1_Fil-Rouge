@@ -38,6 +38,19 @@ Each tick advances every active container by one 10-minute step:
 | Outlier probability | 1 % (`is_outlier = true`) |
 | Battery drain per tick | 0.001–0.008 % |
 
+### Temporal multipliers
+
+Applied on top of the base rate every tick, making `hour`, `day_of_week`, `is_weekend`, and `is_peak_hour` features carry real signal in the time-series data:
+
+| Condition | Multiplier | Affected types |
+|---|---|---|
+| Peak hours 7–9 h and 17–19 h | ×1.5 | all |
+| Night 0–5 h | ×0.4 | all |
+| Weekend (Sat/Sun) | ×1.3 additional | Organique (4), Général (5) |
+| All other hours | ×1.0 | all |
+
+These multipliers are identical to those in `lasc__seed_data` — ensuring the live simulation and the seeded history share the same temporal dynamics, which is required for ML lag and temporal features to generalise from training data to live data.
+
 ### Fill rates and thresholds by container type
 
 | Type | Base fill rate/h | Threshold |
@@ -123,8 +136,9 @@ start >> simulate_fill >> run_aggregations >> end
 | Purpose | One-shot bootstrap | Continuous live simulation |
 | Schedule | Manual (`None`) | `*/10 * * * *` |
 | Triggers | Disabled (`session_replication_role = replica`) | Active |
-| Rows per run | ~1 440 000 (bulk) | ~2 000 (one per active container) |
+| Rows per run | ~8 640 000 (bulk, 10-min cadence) | ~2 000 (one per active container) |
 | State source | Computed from scratch | Current DB state |
+| Temporal multipliers | ✓ peak hours, night, weekend | ✓ peak hours, night, weekend |
 
 Run `lasc__seed_data` first to populate the schema, then enable `lasc__livesim_fill` to keep data evolving.
 

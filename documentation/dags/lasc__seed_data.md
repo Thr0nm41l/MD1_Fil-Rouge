@@ -32,7 +32,7 @@ Populates the Ecotrack PostgreSQL database from scratch with a realistic, self-c
 | IoT Devices | 2 000 (one per container) |
 | Users | 116 (1 admin + 5 managers + 10 workers + 100 citizens) |
 | Teams | 5 (one per zone) |
-| Fill history rows | ~1 440 000 (30 days × 24 h × 2 000 containers) |
+| Fill history rows | ~8 640 000 (30 days × 144 ticks × 2 000 containers) |
 | Collections | 500 (skipped when `skip_users=true`) |
 | Signalements | 200 (skipped when `skip_users=true`) |
 
@@ -164,13 +164,22 @@ Attaches one IoT device to every container in `public.device`. Device attributes
 **Operator:** `PythonOperator`
 **XCom input:** `seed_containers` → containers list
 
-The heaviest task — inserts ~1 440 000 rows into `public.fill_history` (30 days × 24 h × 2 000 containers), batching in chunks of 50 000 rows.
+The heaviest task — inserts ~8 640 000 rows into `public.fill_history` (30 days × 144 ticks × 2 000 containers), batching in chunks of 50 000 rows.
 
-**Simulation model per container:**
+**Simulation model per container (aligned with `lasc__livesim_fill`):**
 - Starts at a random fill level between 0 and 50 % of threshold
-- Fill increases by `FILL_RATE_PER_HOUR[type] × U(0.7, 1.3)` per hour, plus Gaussian noise (`σ=0.3`)
+- One tick every **10 minutes** — matches livesim cadence so that lag features `shift(6)`, `shift(144)`, `shift(1008)` correctly represent 1 h, 24 h, and 7 d on both seeded and live data
+- Fill rate is **re-sampled every tick** with `FILL_RATE_PER_HOUR[type] × U(0.7, 1.3) × (10/60)` plus Gaussian noise (`σ=0.15/tick`) — matching livesim variance distribution (previously a fixed per-container rate caused a low-variance train set vs high-variance test set)
+- **Temporal multipliers** make `hour`, `day_of_week`, `is_weekend`, and `is_peak_hour` features carry real signal:
+
+| Time window | Multiplier | Affected types |
+|---|---|---|
+| Peak hours 7–9 h and 17–19 h | ×1.5 | all |
+| Night 0–5 h | ×0.4 | all |
+| Weekend (Sat/Sun) | ×1.3 additional | Organique (4), Général (5) |
+
 - When fill ≥ threshold, a collection event resets fill to 2–8 % (simulating emptying)
-- Battery drains 0.01–0.05 % per hour, floored at 10 %
+- Battery drains 0.001–0.008 % per tick (≈ 0.006–0.048 %/h), floored at 10 %
 - 1 % of measurements are randomly flagged as `is_outlier = true`
 
 | Type | Base fill rate/h | Threshold |
@@ -248,7 +257,8 @@ An Airflow connection named `Ecotrack` (or the value passed in `conn_id`) must e
 
 ## Runtime Notes
 
-- **Expected duration:** 5–15 minutes depending on cluster resources (dominated by `seed_fill_history`)
+- **Expected duration:** 30–60 minutes depending on cluster resources (dominated by `seed_fill_history`, which now targets ~8.64 M rows vs the previous ~1.44 M)
 - **Fast mode:** trigger with `skip_users = true` — skips user/role/team creation and completes without the user data overhead; containers, history and aggregations still run
-- **Idempotent:** all inserts use `ON CONFLICT` — safe to re-run, but history rows accumulate if the table is not truncated first
+- **Idempotent:** all inserts use `ON CONFLICT` — safe to re-run, but history rows accumulate if the table is not truncated first; use `masc__nuke_database` before reseeding
 - Bulk inserts run with `session_replication_role = 'replica'` to disable row triggers for performance; `seed_signalements` is the exception (triggers intentionally active)
+- **ML alignment:** the fill simulation now matches `lasc__livesim_fill` in cadence (10-min ticks), per-tick variance (±30 % re-sampled each step, σ=0.15), and temporal dynamics (peak-hour and weekend multipliers) — this is required for ML lag features and temporal features to carry valid signal on both seeded and live data
