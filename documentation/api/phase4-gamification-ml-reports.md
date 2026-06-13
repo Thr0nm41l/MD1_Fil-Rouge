@@ -2,7 +2,7 @@
 
 **Sprint:** S9–12
 **Epic refs:** E9 (GAM3–GAM11), E10 (ML5), E7 (R4–R5)
-**Status:** ⚠️ Partial — gamification, reports, leaderboard ✅ · ML pending trained model
+**Status:** ⚠️ Partial — gamification, reports, leaderboard, ML ✅ · gamification detail endpoints pending
 **Router files:** `routers/gamification.py`, `routers/ml.py`, `routers/reports.py`
 **Livrable:** L4 — ML R²>0.65, API prédiction, rapports PDF/Excel
 **Prerequisite:** Phase 3 complete + ML model trained (ML1–ML4) + ≥ 30 days `fill_history`
@@ -143,11 +143,9 @@ Registers the authenticated user in a challenge.
 ## Machine Learning
 
 ### `POST /ml/predict` — ML5
-**Status:** ❌
+**Status:** ✅
 
-Predicts the fill rate of a container at a given time horizon. Returns the prediction and stores it in `ml_predictions` for later accuracy evaluation.
-
-**Prerequisite:** A trained model file must exist on the filesystem (output of ML1–ML4 Jupyter notebooks).
+Predicts the fill rate of a container 24 hours ahead (or any `horizon_hours`). The model (`hgb_v1.0`) is loaded once at API startup; each request runs 3 DB queries and one `model.predict()` call.
 
 **Request body:**
 ```json
@@ -157,29 +155,39 @@ Predicts the fill rate of a container at a given time horizon. Returns the predi
 }
 ```
 
-**Feature engineering (performed at request time):**
+**Feature engineering (performed live per request):**
 
 | Feature | Source |
 |---|---|
-| `hour`, `day_of_week`, `day_of_month`, `is_weekend`, `is_peak_hour` | Current timestamp + horizon offset |
-| `fill_rate_1h_ago`, `fill_rate_24h_ago`, `fill_rate_7d_ago` | `fill_history` lookups |
-| `fill_rate_24h_avg`, `fill_rate_7d_avg`, `fill_rate_change_rate` | Rolling queries on `fill_history` |
-| `capacity`, `type_encoded`, `zone_density` | `containers` + `get_zone_density()` |
+| `hour`, `day_of_week`, `day_of_month`, `is_weekend`, `is_peak_hour` | Current UTC timestamp |
+| `fill_rate_1h_ago` | `fill_history` row 6 steps back (10-min cadence) |
+| `fill_rate_24h_ago` | `fill_history` row 144 steps back |
+| `fill_rate_7d_ago` | `fill_history` row 1008 steps back |
+| `fill_rate_24h_avg`, `fill_rate_7d_avg` | Trailing mean excluding most recent row |
+| `fill_rate_change_rate` | `(latest − 1h_ago) / 6` |
+| `capacity_liters`, `type_id` | `containers` table |
+| `density_km2` | `ST_Area(zones.polygon::geography)` per zone |
 
 **Response:**
 ```json
 {
   "container_id": 104,
-  "horizon_hours": 24,
-  "predicted_fill_rate": 78.3,
-  "predicted_at": "2026-05-08T11:00:00",
-  "model_version": "rf_v1.0"
+  "predicted_fill_rate": 73.4,
+  "predicted_at": "2026-06-14T10:30:00+00:00",
+  "model_version": "hgb_v1.0",
+  "horizon_hours": 24
 }
 ```
 
-**Performance target:** < 100 ms
+**Error responses:**
 
-Stores result in `ml_predictions` with `actual_fill_rate = NULL` (filled later by a batch for accuracy tracking).
+| Code | Condition |
+|---|---|
+| 503 | Model not loaded (file missing at startup) |
+| 404 | Container not found or inactive |
+| 422 | Fewer than 145 fill history rows (< 24h of data) |
+
+**Model:** `HistGradientBoostingRegressor` — no preprocessing step needed (handles mixed types natively). CV R² = 0.718, Test R² = 0.753, RMSE = 9.95, MAE = 5.47. See `documentation/ml/index.md` for full details.
 
 ---
 

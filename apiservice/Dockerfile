@@ -11,6 +11,9 @@ COPY main.py db.py utils.py ./
 COPY routers/ routers/
 COPY schemas/ schemas/
 
+# Copy trained ML model (build context must be the repo root)
+COPY ml/models/ models/
+
 # Expose port
 EXPOSE 8000
 

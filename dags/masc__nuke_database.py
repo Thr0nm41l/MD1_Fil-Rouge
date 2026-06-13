@@ -50,9 +50,10 @@ def task_nuke_database(**context) -> None:
 
     try:
         with conn.cursor() as cur:
-            # Exclude partition children (pg_inherits) so TRUNCATE targets only the
-            # partitioned parent (e.g. fill_history) — PostgreSQL cascades to all
-            # monthly partitions automatically.
+            # Exclude:
+            # - partition children (pg_inherits) — TRUNCATE on the parent cascades to them
+            # - extension-owned tables (pg_depend deptype='e') — e.g. PostGIS spatial_ref_sys,
+            #   which lives in the public schema but must never be truncated
             cur.execute(
                 """
                 SELECT c.relname
@@ -62,6 +63,13 @@ def task_nuke_database(**context) -> None:
                   AND c.relkind IN ('r', 'p')
                   AND NOT EXISTS (
                       SELECT 1 FROM pg_inherits WHERE inhrelid = c.oid
+                  )
+                  AND NOT EXISTS (
+                      SELECT 1
+                      FROM pg_depend d
+                      JOIN pg_extension e ON e.oid = d.refobjid
+                      WHERE d.objid = c.oid
+                        AND d.deptype = 'e'
                   )
                 ORDER BY c.relname
                 """,

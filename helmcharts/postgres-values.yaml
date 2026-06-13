@@ -13,8 +13,8 @@ primary:
       cpu: "250m"
       memory: "512Mi"
     limits:
-      cpu: "1"
-      memory: "2Gi"
+      cpu: "2"
+      memory: "3Gi"
   persistence:
     enabled: true
-    size: 5Gi
+    size: 35Gi

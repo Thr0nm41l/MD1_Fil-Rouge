@@ -64,7 +64,10 @@ This gate exists to prevent data loss from accidental DAG triggers.
 ### `nuke_database`
 **Operator:** `PythonOperator`
 
-1. Queries `pg_class` / `pg_namespace` / `pg_inherits` to discover all top-level tables in the target schema — regular tables (`relkind = 'r'`) and partitioned table parents (`relkind = 'p'`), excluding partition children.
+1. Queries `pg_class` / `pg_namespace` / `pg_inherits` / `pg_depend` to discover the tables to truncate, applying three filters:
+   - **`relkind IN ('r', 'p')`** — regular tables and partitioned table parents only (no views, sequences, etc.)
+   - **`NOT EXISTS (pg_inherits)`** — excludes partition children; truncating the parent cascades to them automatically
+   - **`NOT EXISTS (pg_depend deptype='e')`** — excludes tables owned by PostgreSQL extensions (e.g. PostGIS's `spatial_ref_sys`), which must never be truncated
 2. Builds and executes a single SQL statement:
 
 ```sql
@@ -74,7 +77,8 @@ RESTART IDENTITY CASCADE;
 
 - **`RESTART IDENTITY`** — resets every sequence owned by a column in the truncated tables back to its `START WITH` value (typically `1`). All 25 named sequences in this schema (`role_key_seq`, `users_key_seq`, `fill_history_key_seq`, etc.) are covered.
 - **`CASCADE`** — automatically propagates the truncation to any table that has a foreign key referencing the truncated tables, eliminating the need to order truncations manually.
-- **Partitioned tables** — `fill_history` is range-partitioned by month (37 partitions as of the current schema). Only the parent is listed in the `TRUNCATE`; PostgreSQL propagates to all monthly children automatically. Partition children are explicitly excluded from the discovery query via `pg_inherits`.
+- **Partitioned tables** — `fill_history` is range-partitioned by month (37 partitions as of the current schema). Only the parent is listed in the `TRUNCATE`; PostgreSQL propagates to all monthly children automatically.
+- **Extension tables** — PostGIS registers `spatial_ref_sys` in `pg_depend` with `deptype = 'e'`. Without the extension filter, truncating it breaks all spatial queries (`ST_Area`, `ST_Within`, `ST_DWithin`, etc.) by removing SRID 4326 and all other coordinate system definitions.
 
 All changes are committed in a single transaction. On any error the transaction is rolled back.
 
@@ -94,5 +98,6 @@ An Airflow connection named `Ecotrack` (or the value passed in `conn_id`) must e
 ## Notes
 
 - **Irreversible** — `TRUNCATE` cannot be undone once committed. Ensure the correct `conn_id` and `schema` are set before enabling `confirm`.
-- **Seeded lookup tables are also cleared** — `role`, `container_type`, and `badges` contain static seed data inserted by `setup_complete.sql`. The nuke empties them along with everything else. These must be re-seeded (by re-running the relevant `INSERT` blocks of `setup_complete.sql`) before `lasc__seed_data` can run correctly, since it reads `public.role` to assign user roles and expects `container_type` IDs 1–6 to exist.
+- **Seeded lookup tables are also cleared** — `role`, `container_type`, and `badges` contain static seed data inserted by `setup_complete.sql`. The nuke empties them along with everything else. `lasc__seed_data` handles this automatically via its `seed_lookup_tables` task, which re-inserts `role` and `container_type` with `ON CONFLICT DO NOTHING` before any other seeding begins.
+- **Extension tables are preserved** — `spatial_ref_sys` (PostGIS) and any other extension-owned tables are excluded from the truncation via `pg_depend`. These must never be truncated as they are managed by PostgreSQL extensions, not application data.
 - The `confirm` parameter defaults to `false` — triggering the DAG without changing the parameter is always a safe no-op.

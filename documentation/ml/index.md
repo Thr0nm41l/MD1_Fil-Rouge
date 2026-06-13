@@ -13,8 +13,8 @@
 |---|---|---|---|
 | ML1 | `01_eda_feature_engineering.ipynb` | `data/training_features.parquet` | ✅ Done |
 | ML2+ML3 | `02_training.ipynb` | `models/model.pkl`, `models/metadata.json` | ✅ Done |
-| ML4 | `03_evaluation.ipynb` | `plots/*.png` | ❌ Not run |
-| ML5 | `apiservice/routers/ml.py` | `/ml/predict` endpoint | ⚠️ Stub (503) |
+| ML4 | `03_evaluation.ipynb` | `plots/*.png` | ✅ Done |
+| ML5 | `apiservice/routers/ml.py` | `/ml/predict` endpoint | ✅ Done |
 
 **Execution order:** ML1 → ML2+ML3 → ML4 → ML5
 
@@ -24,19 +24,19 @@
 
 ```
 ml/
-├── ROADMAP.md                          ← Implementation guide and code templates
-├── requirements.txt                    ← Python dependencies
-├── .env / .env.example                 ← DB connection variables
 ├── data/
-│   ├── training_features.parquet       ✅ 2,265,488 rows × 14 features + target
+│   ├── training_features.parquet       ✅ 6,251,787 rows × 14 features + target
 │   └── .gitkeep
 ├── models/
 │   ├── model.pkl                       ✅ Best model: HistGradientBoosting (hgb_v1.0)
 │   ├── metadata.json                   ✅ Version, metrics, feature names
 │   └── .gitkeep
+├── plots/
+│   ├── pred_vs_actual.png              ✅
+│   ├── error_distribution.png          ✅
+│   └── feature_importance.png          ✅ (placeholder — see ML4 notes)
 ├── 01_eda_feature_engineering.ipynb    ML1 — EDA & feature engineering
 ├── 02_training.ipynb                   ML2+ML3 — training, selection, export
-├── 02_training_gpu.ipynb               GPU variant (experimental)
 └── 03_evaluation.ipynb                 ML4 — metrics + 3 required plots
 ```
 
@@ -90,15 +90,15 @@ POSTGRES_PASSWORD=...
 
 | Metric | Value |
 |---|---|
-| Raw rows extracted | 3,033,488 |
-| Containers | 4,000 |
-| Date range | 2026-04-03 → 2026-05-14 |
-| Sampling cadence | **1h** (not 10-min — shifts auto-calculated) |
-| Rows after dropna | **2,265,488** |
+| Raw rows extracted | 8,555,787 |
+| Containers | 2,000 |
+| Date range | 2026-05-14 → 2026-06-13 |
+| Sampling cadence | **10 min** (144 readings/day) |
+| Rows after dropna | **6,251,787** |
 | Features | 14 |
-| Rows dropped | 768,000 (lag/rolling warm-up period) |
+| Rows dropped | 2,304,000 (lag/rolling warm-up period) |
 
-> The notebook dynamically computes shift constants from the actual median interval, so it is cadence-agnostic. At 1h cadence: `SHIFT_1H=1`, `SHIFT_24H=24`, `SHIFT_7D=168`.
+Shift constants computed from median interval (10 min): `SHIFT_1H=6`, `SHIFT_24H=144`, `SHIFT_7D=1008`.
 
 ### EDA plots produced
 
@@ -117,17 +117,17 @@ POSTGRES_PASSWORD=...
 | `day_of_month` | temporal | Day of month (1–31) |
 | `is_weekend` | temporal | 1 if Saturday or Sunday |
 | `is_peak_hour` | temporal | 1 if hour in {7, 8, 9, 17, 18, 19} |
-| `fill_rate_1h_ago` | lag | Fill rate ~1h before |
-| `fill_rate_24h_ago` | lag | Fill rate ~24h before |
-| `fill_rate_7d_ago` | lag | Fill rate ~7 days before |
-| `fill_rate_24h_avg` | rolling | Trailing 24h mean (no future leakage) |
+| `fill_rate_1h_ago` | lag | Fill rate 6 rows back (shift 6 at 10-min cadence) |
+| `fill_rate_24h_ago` | lag | Fill rate 144 rows back (~24h) |
+| `fill_rate_7d_ago` | lag | Fill rate 1008 rows back (~7 days) |
+| `fill_rate_24h_avg` | rolling | Trailing 24h mean (shift(1).rolling(144) — no leakage) |
 | `fill_rate_7d_avg` | rolling | Trailing 7-day mean |
-| `fill_rate_change_rate` | derivative | Δ fill_rate per step over the last 1h |
+| `fill_rate_change_rate` | derivative | Δ fill_rate per 10-min step over the last 1h |
 | `capacity_liters` | container | Physical capacity (liters) |
 | `type_id` | container | Waste type category (integer) |
 | `density_km2` | zone | Active containers per km² in the zone |
 
-**Target:** `fill_rate` 24 hours in the future (`g.shift(-SHIFT_24H)` per container)
+**Target:** `fill_rate` 24 hours in the future (`g.shift(-144)` per container)
 
 ---
 
@@ -140,22 +140,24 @@ POSTGRES_PASSWORD=...
 
 Temporal 85/15 split (no shuffle — time-series data):
 
-| Set | Rows | Period |
-|---|---|---|
-| Train | 1,925,664 | 2026-04-10 → 2026-05-03 |
-| Test | 339,824 | 2026-05-03 → 2026-05-09 |
+| Set | Rows |
+|---|---|
+| Train | 5,314,018 |
+| Test | 937,769 |
 
 Cross-validation: `TimeSeriesSplit(n_splits=5)` on the train set.
 
 ### Model comparison (last run)
 
-| Model | CV R² | Test R² | Test RMSE | Test MAE |
-|---|---|---|---|---|
-| LinearRegression | 0.094 | -0.018 | 20.37 | 17.16 |
-| RandomForestRegressor | 0.522 | 0.093 | 19.23 | 14.25 |
-| **HistGradientBoosting** | **0.673** | **0.218** | **17.85** | **12.36** |
+| Model | CV R² | Test R² | Test RMSE | Test MAE | CDC pass? |
+|---|---|---|---|---|---|
+| LinearRegression | ~−2.9×10¹⁹ (unstable) | 0.199 | 17.903 | 13.873 | ❌ |
+| RandomForestRegressor | 0.633 | 0.678 | 11.342 | 6.609 | ❌ (RMSE > 10) |
+| **HistGradientBoosting** | **0.718** | **0.753** | **9.949** | **5.468** | ✅ |
 
-> **Selected model:** `hgb_v1.0` — best CV R² (0.673, meets the > 0.65 threshold).
+> **Selected model:** `hgb_v1.0` — best CV R² and only model meeting all three CDC thresholds (RMSE < 10, MAE < 7, R² > 0.65).
+
+**Note on LinearRegression CV R²:** the value of ~−2.9×10¹⁹ is a numerical blowup caused by `StandardScaler` + `TimeSeriesSplit` producing near-degenerate folds at this data scale. It does not affect model selection.
 
 ### HistGradientBoosting configuration
 
@@ -171,30 +173,21 @@ HistGradientBoostingRegressor(
 
 HGB handles mixed numeric/categorical types natively — **no `ColumnTransformer` preprocessing step** in its pipeline. The LinearRegression and RandomForest pipelines use `StandardScaler` (numerical) + `OneHotEncoder` (type_id).
 
-### Known issue — test R² below L4 target
-
-The test R² (0.218) is well below the target (0.65), even though CV R² meets it. Likely causes:
-
-- **Short history window (~41 days):** the 7-day lag features have limited diversity, so the model has learned a narrow distribution. With more data, the 7d seasonal signal should strengthen.
-- **Distribution shift:** the test period (2026-05-03 → 2026-05-09) may have different fill patterns than the training period.
-
-To improve: wait for more `fill_history` rows to accumulate (aim for 60–90 days), then re-run ML1 → ML2 → ML3.
-
 ### metadata.json (current)
 
 ```json
 {
   "version": "hgb_v1.0",
-  "trained_at": "2026-05-14T13:15:48.510780+00:00",
+  "trained_at": "2026-06-13T17:47:10.618233+00:00",
   "model_type": "hgb",
   "train_ratio": 0.85,
-  "cv_r2": 0.6732,
-  "test_r2": 0.2179,
-  "test_rmse": 17.8549,
-  "test_mae": 12.3613,
+  "cv_r2": 0.7184,
+  "test_r2": 0.7527,
+  "test_rmse": 9.9485,
+  "test_mae": 5.4679,
   "n_features": 14,
-  "train_rows": 1925664,
-  "test_rows": 339824
+  "train_rows": 5314018,
+  "test_rows": 937769
 }
 ```
 
@@ -203,73 +196,37 @@ To improve: wait for more `fill_history` rows to accumulate (aim for 60–90 day
 ## ML4 — Evaluation
 
 **Notebook:** `03_evaluation.ipynb`  
-**Status:** ❌ Not yet run — `plots/` directory does not exist
+**Status:** ✅ Done
 
-### To run
+### Validation targets (L4)
 
-```bash
-cd ml
-jupyter lab 03_evaluation.ipynb
-```
+| Metric | Target | Result (hgb_v1.0) | Status |
+|---|---|---|---|
+| RMSE | < 10 | 9.95 | ✅ |
+| MAE | < 7 | 5.47 | ✅ |
+| R² | > 0.65 | 0.753 | ✅ |
 
-Run all cells. The notebook will:
-1. Load `models/model.pkl` + `models/metadata.json`
-2. Reconstruct the temporal 80/20 test split from the parquet
-3. Print RMSE / MAE / R² with pass/fail against L4 thresholds
-4. Save 3 plots to `plots/`
-
-### Expected plots
+### Plots produced
 
 | File | Description |
 |---|---|
 | `plots/pred_vs_actual.png` | Scatter: predicted vs actual fill rate (2,000-point sample) |
 | `plots/error_distribution.png` | Histogram of prediction errors with mean and p95 annotation |
-| `plots/feature_importance.png` | Top-15 feature importances (RF) or LR coefficients |
+| `plots/feature_importance.png` | Placeholder — `HistGradientBoostingRegressor` does not expose `feature_importances_`; permutation importance would require a separate pass |
 
-### Known issue in `03_evaluation.ipynb`
+### Known issues fixed in the notebook
 
-The feature importance cell branches on `meta['model_type'] == 'rf'`. Since the current best model is `hgb`, it falls into the `else` branch, which tries to access `model.named_steps['prep']` — **this step does not exist in the HGB pipeline** and will raise a `KeyError`. Fix by adding an `'hgb'` branch before running:
+Two Python 3.14 + library version incompatibilities were patched directly in the notebook cells:
 
-```python
-elif meta['model_type'] == 'hgb':
-    # HistGradientBoosting exposes feature importances directly
-    importances = model.named_steps['model'].feature_importances_
-    feat_names  = np.array(FEATURE_COLS)
-    top_n       = min(15, len(importances))
-    idx_sorted  = np.argsort(importances)[::-1][:top_n]
-
-    fig, ax = plt.subplots(figsize=(10, 5))
-    ax.bar(range(top_n), importances[idx_sorted], color='steelblue')
-    ax.set_xticks(range(top_n))
-    ax.set_xticklabels(feat_names[idx_sorted], rotation=45, ha='right', fontsize=9)
-    ax.set_ylabel('Feature importance')
-    ax.set_title(f'Top {top_n} feature importances — {meta["version"]}')
-    plt.tight_layout()
-    plt.savefig('plots/feature_importance.png', dpi=120)
-    plt.show()
-```
-
-### Validation targets (L4)
-
-| Metric | Target | Current (hgb_v1.0) | Status |
-|---|---|---|---|
-| RMSE | < 10 | 17.85 | ❌ |
-| MAE | < 7 | 12.36 | ❌ |
-| R² | > 0.65 | 0.22 (test) / 0.67 (CV) | ❌ |
+- **`sort_values('measured_at')` crash** (pandas 2.x `DatetimeArray` ExtensionArray bug): replaced with `df.iloc[df['measured_at'].to_numpy().argsort(kind='stable')]`
+- **`ax.hist(errors, bins=80)` crash** (numpy 2.x histogram edge case): replaced with explicit `bins=np.linspace(errors.min(), errors.max(), 81)` to bypass numpy's internal bin-count calculation
 
 ---
 
 ## ML5 — API Integration
 
 **File:** `apiservice/routers/ml.py`  
-**Status:** ⚠️ 503 stub — not yet wired up
-
-### To activate
-
-1. Ensure `models/model.pkl` and `models/metadata.json` are present (done).
-2. Choose a deployment option (see below).
-3. Replace the stub in `apiservice/routers/ml.py` with the full implementation from `ml/ROADMAP.md § ML5`.
-4. Set `MODEL_PATH` env var to the model file path inside the container.
+**Status:** ✅ Done
 
 ### Endpoint
 
@@ -287,58 +244,41 @@ Content-Type: application/json
 ```json
 {
   "container_id": 104,
-  "horizon_hours": 24,
-  "predicted_fill_rate": 78.3,
-  "predicted_at": "2026-05-08T11:00:00",
-  "model_version": "hgb_v1.0"
+  "predicted_fill_rate": 73.4,
+  "predicted_at": "2026-06-14T10:30:00+00:00",
+  "model_version": "hgb_v1.0",
+  "horizon_hours": 24
 }
 ```
 
-At inference time the endpoint reconstructs the 14 features live from the DB (5 indexed queries). Performance target: < 100 ms.
+### How it works
 
-> **Important:** the current model (`hgb_v1.0`) was trained without a `ColumnTransformer`. Feature extraction must produce the same 14 columns in the same order as `FEATURE_COLS` in `metadata.json`. No scaling or encoding step is needed before calling `model.predict()`.
+The model is loaded once at API startup via `load_model()` (called in `main.py`'s lifespan handler). Per request, the endpoint:
 
----
+1. Queries `containers` for `capacity_liters`, `type_id`, `zone_id`
+2. Queries `zones` for `density_km2` via `ST_Area(polygon::geography)`
+3. Fetches the last 1,009 `fill_history` rows for the container (ordered most recent first)
+4. Computes all 14 features using the same shift constants as the EDA notebook (`SHIFT_1H=6`, `SHIFT_24H=144`, `SHIFT_7D=1008`)
+5. Calls `model.predict()` and clips the result to `[0, 100]`
 
-## Deployment
+### Error responses
 
-Two options to make `model.pkl` available to the API container:
+| Code | Condition |
+|---|---|
+| 503 | Model file not found at startup |
+| 404 | Container not found or inactive |
+| 422 | Fewer than 145 fill_history rows (< 24h of data at 10-min cadence) |
 
-### Option A — Bake into Docker image (simplest)
+### Model path configuration
 
-Add to `apiservice/Dockerfile`:
-```dockerfile
-COPY ../ml/models/model.pkl     /ml/models/model.pkl
-COPY ../ml/models/metadata.json /ml/models/metadata.json
-ENV MODEL_PATH=/ml/models/model.pkl
-```
+| Context | Path |
+|---|---|
+| Local dev | Auto-detected: `../ml/models/model.pkl` relative to `apiservice/` |
+| Docker / k8s | Set `MODEL_PATH=/app/models/model.pkl` env var |
 
-Rebuild and push after each model update.
-
-### Option B — PVC mount (recommended for iterative retraining)
-
-Add a `persistentVolumeClaim` volume + mount to `helmcharts/apiservice-deployment.yaml`:
-
-```yaml
-# spec.volumes
-- name: ml-models
-  persistentVolumeClaim:
-    claimName: apiservice-ml-models
-
-# spec.containers[0].volumeMounts
-- name: ml-models
-  mountPath: /ml/models
-  readOnly: true
-
-# spec.containers[0].env
-- name: MODEL_PATH
-  value: "/ml/models/model.pkl"
-```
-
-Copy updated model to the PVC after retraining:
+The Dockerfile copies `ml/models/` into `/app/models/` — the Docker build must run from the repo root:
 ```bash
-kubectl cp ml/models/model.pkl     datalake/<apiservice-pod>:/ml/models/model.pkl
-kubectl cp ml/models/metadata.json datalake/<apiservice-pod>:/ml/models/metadata.json
+docker build -f apiservice/Dockerfile -t thronmail/md1-fil-rouge-api:latest .
 ```
 
 ---
@@ -348,17 +288,20 @@ kubectl cp ml/models/metadata.json datalake/<apiservice-pod>:/ml/models/metadata
 Run this sequence after accumulating more `fill_history` data:
 
 ```
-1. ML1 — re-run 01_eda_feature_engineering.ipynb
+1. (Optional) masc__nuke_database  confirm=true
+              lasc__seed_data
+
+2. ML1 — re-run 01_eda_feature_engineering.ipynb
           → replaces data/training_features.parquet
 
-2. ML2+ML3 — re-run 02_training.ipynb
+3. ML2+ML3 — re-run 02_training.ipynb
               → replaces models/model.pkl + models/metadata.json
 
-3. ML4 — run 03_evaluation.ipynb (fix HGB branch first — see above)
-          → generates plots/ — verify targets are met
+4. ML4 — run 03_evaluation.ipynb
+          → verify all three L4 targets pass
 
-4. ML5 — if targets met, deploy model to API container
+5. ML5 — rebuild Docker image (model is baked in) and redeploy
           → test POST /ml/predict with a real container_id
 ```
 
-**Risk:** if `fill_history` has < 30 days per container, the 7-day lag rows will be dropped and training set will be too small. Always check the date range after ML1 before proceeding.
+**Risk:** if `fill_history` has < 8 days per container, 7-day lag rows will be dropped and the training set will be too small. Always check the date range after ML1 before proceeding.

@@ -10,11 +10,13 @@ except ImportError:
 
 from db import init_pool, close_pool
 from routers import containers, zones, history, routes, analytics, dashboard, gamification, ml, reports
+from routers.ml import load_model
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     init_pool()
+    load_model()
     yield
     close_pool()
 
