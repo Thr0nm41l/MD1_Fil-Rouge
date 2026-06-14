@@ -37,6 +37,10 @@ def _model_path() -> Path:
     env = os.environ.get("MODEL_PATH")
     if env:
         return Path(env)
+    # Docker: model copied to /app/models/
+    docker_path = Path("/app/models/model.pkl")
+    if docker_path.exists():
+        return docker_path
     # Local dev: routers/ → apiservice/ → repo root → ml/models/
     return Path(__file__).parent.parent.parent / "ml" / "models" / "model.pkl"
 
