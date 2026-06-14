@@ -32,7 +32,7 @@ spec:
       containers:
         - name: apiservice
           image: thronmail/md1-fil-rouge-api:latest
-          imagePullPolicy: IfNotPresent
+          imagePullPolicy: Always
           ports:
             - name: http
               containerPort: 8000
@@ -53,6 +53,8 @@ spec:
                   key: postgres-password
             - name: REPORTS_DIR
               value: "/reports"
+            - name: MODEL_PATH
+              value: "/app/models/model.pkl"
           volumeMounts:
             - name: reports-storage
               mountPath: /reports
@@ -73,10 +75,10 @@ spec:
           resources:
             requests:
               cpu: "100m"
-              memory: "128Mi"
-            limits:
-              cpu: "200m"
               memory: "256Mi"
+            limits:
+              cpu: "500m"
+              memory: "512Mi"
       volumes:
         - name: reports-storage
           persistentVolumeClaim:

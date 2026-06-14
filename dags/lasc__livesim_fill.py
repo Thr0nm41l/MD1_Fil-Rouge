@@ -94,8 +94,10 @@ def task_simulate_fill(**context) -> None:
     skip_reset = context["params"]["skip_reset"]
 
     # Snap measured_at to the current 10-min boundary
-    now = datetime.now().replace(second=0, microsecond=0)
-    now = now.replace(minute=(now.minute // INTERVAL_MINUTES) * INTERVAL_MINUTES)
+    now  = datetime.now().replace(second=0, microsecond=0)
+    now  = now.replace(minute=(now.minute // INTERVAL_MINUTES) * INTERVAL_MINUTES)
+    hour = now.hour
+    dow  = now.weekday()  # 0 = Mon, 6 = Sun
 
     conn = _get_conn(context["params"])
     try:
@@ -126,8 +128,20 @@ def task_simulate_fill(**context) -> None:
                     continue
 
                 # Advance fill for one 10-min tick
-                rate     = FILL_RATE_PER_HOUR.get(type_id, 2.0) * RATE_SCALE
-                rate    *= random.uniform(0.7, 1.3)
+                rate = FILL_RATE_PER_HOUR.get(type_id, 2.0) * RATE_SCALE
+                rate *= random.uniform(0.7, 1.3)
+
+                # Temporal multipliers — mirror lasc__seed_data simulation model
+                if hour in (7, 8, 9, 17, 18, 19):
+                    time_mult = 1.5
+                elif 0 <= hour <= 5:
+                    time_mult = 0.4
+                else:
+                    time_mult = 1.0
+                if dow >= 5 and type_id in (4, 5):  # weekend boost: organic + general
+                    time_mult *= 1.3
+                rate *= time_mult
+
                 new_fill = fill_rate + rate + random.gauss(0, 0.15)
                 new_fill = max(0.0, new_fill)
 

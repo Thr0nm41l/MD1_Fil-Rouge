@@ -51,6 +51,8 @@ apiservice/
 | `POSTGRES_DB` | — | Database name (`Ecotrack`) |
 | `POSTGRES_USER` | — | Database user |
 | `POSTGRES_PASSWORD` | — | Database password |
+| `MODEL_PATH` | `../ml/models/model.pkl` (local dev) | Path to the trained ML model pickle file |
+| `REPORTS_DIR` | `/reports` | Directory for generated PDF/Excel report files |
 
 ---
 
@@ -62,7 +64,7 @@ apiservice/
 | Phase 1 — Containers & Zones | S3–4 | ✅ Done | [phase1-containers-zones.md](phase1-containers-zones.md) |
 | Phase 2 — IoT History & Routes | S5–6 | ✅ Done | [phase2-history-routes.md](phase2-history-routes.md) |
 | Phase 3 — Analytics & Dashboard | S7–8 | ✅ Done | [phase3-analytics.md](phase3-analytics.md) |
-| Phase 4 — Gamification, ML & Reports | S9–12 | ⚠️ Partial (ML pending model) | [phase4-gamification-ml-reports.md](phase4-gamification-ml-reports.md) |
+| Phase 4 — Gamification, ML & Reports | S9–12 | ⚠️ Partial (gamification detail endpoints pending) | [phase4-gamification-ml-reports.md](phase4-gamification-ml-reports.md) |
 
 ---
 
@@ -130,6 +132,6 @@ Interactive docs available at `http://localhost:8000/docs` once the server is ru
 | `GET` | `/users/{id}/impact` | 4 | ✅ |
 | `GET` | `/defis` | 4 | ✅ |
 | `POST` | `/defis/{id}/join` | 4 | ✅ |
-| `POST` | `/ml/predict` | 4 | ⚠️ stub — pending model |
+| `POST` | `/ml/predict` | 4 | ✅ |
 | `POST` | `/reports/generate` | 4 | ✅ |
 | `GET` | `/reports/{id}/download` | 4 | ✅ |

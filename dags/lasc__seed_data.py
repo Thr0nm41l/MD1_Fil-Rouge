@@ -2,6 +2,7 @@
 ### DAG : test__seed_data.py
 
 ## Tasks :
+- seed_lookup_tables: Re-seeds role and container_type static data (safe after a nuke)
 - seed_data: Seeds the database with initial data
 
 ## Data generaton:
@@ -9,7 +10,7 @@
 - 2 000 containers distributed across zones
 - 1 admin + 5 managers + 10 workers + 100 citizens (skippable via skip_users)
 - IoT devices (one per container)
-- 30 days of fill_history  (~1 440 000 rows)
+- 30 days of fill_history  (~8 640 000 rows, 10-min cadence)
 - Collections, signalements, user points (skipped when skip_users=True)
 - Hourly and daily aggregations
 
@@ -61,7 +62,9 @@ N_CITIZENS       = 100
 N_WORKERS        = 10    # 2 per zone
 N_MANAGERS       = 5     # 1 per zone
 DAYS_HISTORY     = 30
-MEASURES_PER_DAY = 24    # 1 per hour  →  30 × 2 000 × 24 = 1 440 000 rows
+MEASURES_PER_DAY = 144   # 1 per 10 min  →  30 × 2 000 × 144 = 8 640 000 rows
+TICK_MINUTES     = 10
+TICK_SCALE       = TICK_MINUTES / 60  # convert hourly rates to per-tick increments
 BATCH_SIZE       = 50_000
 
 # Lyon districts — non-overlapping bounding boxes (lng_min, lat_min, lng_max, lat_max)
@@ -390,9 +393,16 @@ def seed_fill_history(cur, containers: List[dict]) -> None:
     """
     Generate DAYS_HISTORY × MEASURES_PER_DAY measurements per container.
 
-    Fill rate simulation:
+    Fill rate simulation (aligned with lasc__livesim_fill):
     - Each container starts at a random fill level.
-    - Fill rate increases by FILL_RATE_PER_HOUR[type] ± Gaussian noise per hour.
+    - One tick every TICK_MINUTES (10 min) — matches livesim cadence so that
+      lag features shift(6/144/1008) correctly represent 1 h / 24 h / 7 d.
+    - Fill rate is re-sampled every tick with ±30 % variability + Gaussian noise
+      (σ=0.15/tick), matching livesim variance distribution.
+    - Hour-of-day and day-of-week multipliers make temporal features informative:
+        · peak hours 7–9 h and 17–19 h → ×1.5
+        · night 0–5 h → ×0.4
+        · weekend (Sat/Sun) for organic (type 4) and general (type 5) → ×1.3 addl.
     - When fill rate exceeds the collection threshold, a collection event resets
       it to 2–8 % (simulating agent emptying the container).
     - 1 % of measurements are flagged as outliers (sensor anomaly).
@@ -402,7 +412,7 @@ def seed_fill_history(cur, containers: List[dict]) -> None:
     """
     log(
         f"Seeding fill_history "
-        f"({DAYS_HISTORY}d × {N_CONTAINERS} containers × {MEASURES_PER_DAY}h "
+        f"({DAYS_HISTORY}d × {N_CONTAINERS} containers × {MEASURES_PER_DAY} ticks/day "
         f"≈ {DAYS_HISTORY * N_CONTAINERS * MEASURES_PER_DAY:,} rows)..."
     )
 
@@ -421,9 +431,6 @@ def seed_fill_history(cur, containers: List[dict]) -> None:
         type_id   = c["type_id"]
         threshold = c["threshold"]
 
-        # Per-container variability: ±30 % of the base fill rate
-        rate_per_hour = FILL_RATE_PER_HOUR[type_id] * random.uniform(0.7, 1.3)
-
         current_fill = random.uniform(0.0, threshold * 0.5)
         battery      = random.uniform(60.0, 100.0)
         current_dt   = start_dt
@@ -435,7 +442,7 @@ def seed_fill_history(cur, containers: List[dict]) -> None:
 
             fill_rate  = round(min(current_fill, 100.0), 2)
             temp       = round(random.uniform(5.0, 35.0), 1)
-            battery   -= random.uniform(0.01, 0.05)
+            battery   -= random.uniform(0.001, 0.008)
             battery    = max(battery, 10.0)
             is_outlier = random.random() < 0.01
 
@@ -444,9 +451,24 @@ def seed_fill_history(cur, containers: List[dict]) -> None:
                 round(battery, 2), is_outlier, current_dt,
             ))
 
-            current_fill += rate_per_hour + random.gauss(0, 0.3)
+            # Re-sample rate every tick — matches livesim ±30 % per-tick variability
+            base_rate = FILL_RATE_PER_HOUR[type_id] * random.uniform(0.7, 1.3) * TICK_SCALE
+
+            # Temporal multipliers — give hour/day_of_week features real signal
+            hour = current_dt.hour
+            dow  = current_dt.weekday()  # 0 = Mon, 6 = Sun
+            if hour in (7, 8, 9, 17, 18, 19):
+                time_mult = 1.5
+            elif 0 <= hour <= 5:
+                time_mult = 0.4
+            else:
+                time_mult = 1.0
+            if dow >= 5 and type_id in (4, 5):  # weekend boost: organic + general
+                time_mult *= 1.3
+
+            current_fill += base_rate * time_mult + random.gauss(0, 0.15)
             current_fill  = max(0.0, current_fill)
-            current_dt   += timedelta(hours=1)
+            current_dt   += timedelta(minutes=TICK_MINUTES)
 
             if len(batch) >= BATCH_SIZE:
                 _flush_history_batch(cur, batch)
@@ -566,6 +588,31 @@ def seed_signalements(cur, containers: List[dict], users: dict) -> None:
             row,
         )
     log(f"  → {len(rows)} signalements")
+
+
+def seed_lookup_tables(cur) -> None:
+    """
+    Re-insert the static rows that setup_complete.sql normally seeds.
+    Uses ON CONFLICT DO NOTHING — safe to run on a populated or freshly nuked DB.
+    Must run before seed_roles (reads public.role) and seed_containers (FK to container_type).
+    """
+    log("Seeding lookup tables (role, container_type)...")
+    cur.execute("""
+        INSERT INTO public.role (name) VALUES
+            ('User'), ('Worker'), ('Manager'), ('Admin')
+        ON CONFLICT DO NOTHING
+    """)
+    cur.execute("""
+        INSERT INTO public.container_type (name, description, fill_threshold_pct) VALUES
+            ('Verre',     'Bouteilles et bocaux en verre',            80.00),
+            ('Plastique', 'Emballages plastiques et PET',             70.00),
+            ('Papier',    'Papier, carton et journaux',               75.00),
+            ('Organique', 'Déchets alimentaires et de jardin',        65.00),
+            ('Général',   'Ordures ménagères non triées',             70.00),
+            ('Métal',     'Canettes, boîtes de conserve, ferraille',  80.00)
+        ON CONFLICT DO NOTHING
+    """)
+    log("  → role (4 rows) and container_type (6 rows) ready")
 
 
 def run_aggregations(cur) -> None:
@@ -760,6 +807,19 @@ def task_seed_signalements(**context) -> None:
         conn.close()
 
 
+def task_seed_lookup_tables(**context) -> None:
+    conn = _get_conn(context["params"])
+    try:
+        with conn.cursor() as cur:
+            seed_lookup_tables(cur)
+        conn.commit()
+    except Exception:
+        conn.rollback()
+        raise
+    finally:
+        conn.close()
+
+
 def task_run_aggregations(**context) -> None:
     conn = _get_conn(context["params"])
     try:
@@ -802,6 +862,12 @@ with DAG(
 
     start_task = EmptyOperator(task_id="start", task_display_name="Start")
 
+    seed_lookup_tables_task = PythonOperator(
+        task_id="seed_lookup_tables",
+        task_display_name="Seed Lookup Tables",
+        python_callable=task_seed_lookup_tables,
+    )
+
     seed_zones_task = PythonOperator(
         task_id="seed_zones",
         task_display_name="Seed Zones",
@@ -840,7 +906,7 @@ with DAG(
     )
     seed_fill_history_task = PythonOperator(
         task_id="seed_fill_history",
-        task_display_name="Seed Fill History (~1.44M rows)",
+        task_display_name="Seed Fill History (~8.64M rows)",
         python_callable=task_seed_fill_history,
     )
     seed_collections_task = PythonOperator(
@@ -865,7 +931,7 @@ with DAG(
     )
 
 # Dependency graph
-start_task >> [check_skip_users_task, seed_zones_task]
+start_task >> seed_lookup_tables_task >> [check_skip_users_task, seed_zones_task]
 check_skip_users_task >> seed_users_task >> seed_roles_task
 [seed_zones_task, seed_users_task] >> seed_teams_task
 seed_zones_task >> seed_containers_task >> seed_devices_task
