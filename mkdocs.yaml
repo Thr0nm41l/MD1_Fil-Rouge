@@ -50,3 +50,7 @@ nav:
     - Create K8S Secret: howto/k8s-secrets-doc.md
     - Monitoring with Prometheus: howto/monitoring.md
     - Grafana Setup: howto/grafana-postgresql-setup.md
+  - Tech Watch:
+    - System & Methods: techwatch/index.md
+    - Techologies : techwatch/technology.md
+    - Regulatory & CSR Watch: techwatch/reglementation.md
