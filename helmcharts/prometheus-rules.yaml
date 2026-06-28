@@ -1,0 +1,80 @@
+# Queries
+
+groups: 
+- name: airflow-agregate:
+  interval: 1m
+  rules:
+
+    # CPU usage per pod on namespace airflow
+    - record: cpu-usage-percentage-query
+      expr: | sum (rate (container_cpu_usage_seconds_total{id!="/",namespace=~"airflow"}[5m])) by (pod)*100
+
+    # Memory usage per on namespace airflow compared to limits
+    - record: memory-usage-percentage-query
+      expr: | sum(container_memory_working_set_bytes{id!="/",namespace=~"airflow"}) by (namespace) / sum(kube_pod_container_resource_limits{id!="/", namespace=~"airflow", resource="memory"}) by (namespace)* 100
+
+- name: datalake-agregate:
+  interval: 1m
+  rules:
+
+    # CPU usage per pod on namespace Datalake
+    - record: cpu-usage-percentage-query
+      expr: | sum (rate (container_cpu_usage_seconds_total{id!="/",namespace=~"datalake"}[5m])) by (pod)*100
+
+    # Memory usage per on namespace Datalake compared to limits
+    - record: memory-usage-percentage-query
+      expr: | sum(container_memory_working_set_bytes{id!="/",namespace=~"datalake"}) by (namespace) / sum(kube_pod_container_resource_limits{id!="/", namespace=~"datalake", resource="memory"}) by (namespace)* 100
+
+- name: documentation-agregate:
+  interval: 1m
+  rules:
+
+    # CPU usage per pod on namespace Documentation
+    - record: cpu-usage-percentage-query
+      expr: | sum (rate (container_cpu_usage_seconds_total{id!="/",namespace=~"documentation"}[5m])) by (pod)*100
+
+    # Memory usage per on namespace Documentation compared to limits
+    - record: memory-usage-percentage-query
+      expr: | sum(container_memory_working_set_bytes{id!="/",namespace=~"documentation"}) by (namespace) / sum(kube_pod_container_resource_limits{id!="/", namespace=~"documentation", resource="memory"}) by (namespace)* 100
+
+- name: kube-system:
+  interval: 1m
+  rules:
+
+    # CPU usage per pod on namespace Kube-System
+    - record: cpu-usage-percentage-query
+      expr: | sum (rate (container_cpu_usage_seconds_total{id!="/",namespace=~"kube-system"}[5m])) by (pod)*100
+
+    # Memory usage per on namespace Kube-System compared to limits
+    - record: memory-usage-percentage-query
+      expr: | sum(container_memory_working_set_bytes{id!="/",namespace=~"kube-system"}) by (namespace) / sum(kube_pod_container_resource_limits{id!="/",namespace=~"kube-system",resource="memory"}) by (namespace)* 100
+
+- name: monitoring-agregate:
+  interval: 1m
+  rules:
+
+    # CPU usage per pod on namespace Monitoring
+    - record: cpu-usage-percentage-query
+      expr: | sum (rate (container_cpu_usage_seconds_total{id!="/",namespace=~"monitoring"}[5m])) by (pod)*100
+
+    # Memory usage per on namespace Monitoring compared to limits
+    - record: memory-usage-percentage-query
+      expr: | sum(container_memory_working_set_bytes{id!="/",namespace=~"monitoring"}) by (namespace) / sum(kube_pod_container_resource_limits{id!="/", namespace=~"monitoring", resource="memory"}) by (namespace)* 100
+
+- name: traefik-agregate:
+  interval: 1m
+  rules:
+
+    # CPU usage per pod on namespace Traefik
+    - record: cpu-usage-percentage-query
+      expr: | sum (rate (container_cpu_usage_seconds_total{id!="/",namespace=~"traefik"}[5m])) by (pod)*100
+
+    # Memory usage per on namespace Traefik compared to limits
+    - record: memory-usage-percentage-query
+      expr: | sum(container_memory_working_set_bytes{id!="/",namespace=~"traefik"}) by (namespace) / sum(kube_pod_container_resource_limits{id!="/", namespace=~"traefik", resource="memory"}) by (namespace)* 100
+
+
+
+#Example in case of need for monitoring of a specific pod in a namespace
+#airflow-redis-0:
+#  cpu-usage-percentage-query: sum (rate (container_cpu_usage_seconds_total{id!="/",namespace=~"airflow",pod=~"airflow-redis-0"}[1m])) by (pod)*100
