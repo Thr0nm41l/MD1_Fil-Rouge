@@ -13,6 +13,11 @@ theme:
     - navigation.top
     - search.highlight
 
+markdown_extensions:
+  - admonition
+  - pymdownx.details
+  - pymdownx.superfences
+
 docs_dir: documentation
 
 nav:
