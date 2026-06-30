@@ -19,7 +19,7 @@ Run all tests (requires port-forward to PostgreSQL):
 
 import os
 import sys
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, patch
 
 import psycopg2
 import pytest
@@ -58,8 +58,9 @@ def mock_conn():
 def client(mock_conn):
     """TestClient with DB dependency overridden by a mock — no DB required."""
     app.dependency_overrides[get_db] = lambda: mock_conn
-    with TestClient(app) as c:
-        yield c
+    with patch("main.init_pool"), patch("main.close_pool"):
+        with TestClient(app, raise_server_exceptions=False) as c:
+            yield c
     app.dependency_overrides.clear()
 
 

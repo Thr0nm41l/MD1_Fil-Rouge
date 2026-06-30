@@ -7,6 +7,8 @@ CDC criteria:
   - KPI    : 6 KPI cards avec variation %
 """
 
+from collections import defaultdict
+
 import pytest
 
 
@@ -34,7 +36,7 @@ class TestAnalyticsEndpointsExist:
         """Aucun endpoint analytics ne doit retourner 405 Method Not Allowed."""
         cur = mock_conn.cursor.return_value
         cur.fetchall.return_value = []
-        cur.fetchone.return_value = {}
+        cur.fetchone.return_value = defaultdict(int)
         response = client.get(endpoint)
         assert response.status_code != 405, f"{endpoint} retourne 405"
 
@@ -43,7 +45,7 @@ class TestAnalyticsEndpointsExist:
         """Chaque endpoint analytics retourne du JSON."""
         cur = mock_conn.cursor.return_value
         cur.fetchall.return_value = []
-        cur.fetchone.return_value = {}
+        cur.fetchone.return_value = defaultdict(int)
         response = client.get(endpoint)
         assert response.headers["content-type"].startswith("application/json"), (
             f"{endpoint} ne retourne pas du JSON"
