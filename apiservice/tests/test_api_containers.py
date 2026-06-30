@@ -16,14 +16,14 @@ import pytest
 class TestContainersListStructure:
     def test_returns_200(self, client, mock_conn):
         cur = mock_conn.cursor.return_value
-        cur.fetchone.return_value = {"total": 0}
+        cur.fetchone.return_value = (0,)
         cur.fetchall.return_value = []
         response = client.get("/containers")
         assert response.status_code == 200
 
     def test_response_has_items_and_total(self, client, mock_conn):
         cur = mock_conn.cursor.return_value
-        cur.fetchone.return_value = {"total": 0}
+        cur.fetchone.return_value = (0,)
         cur.fetchall.return_value = []
         body = client.get("/containers").json()
         assert "items" in body
@@ -31,14 +31,14 @@ class TestContainersListStructure:
 
     def test_items_is_list(self, client, mock_conn):
         cur = mock_conn.cursor.return_value
-        cur.fetchone.return_value = {"total": 0}
+        cur.fetchone.return_value = (0,)
         cur.fetchall.return_value = []
         body = client.get("/containers").json()
         assert isinstance(body["items"], list)
 
     def test_total_is_integer(self, client, mock_conn):
         cur = mock_conn.cursor.return_value
-        cur.fetchone.return_value = {"total": 42}
+        cur.fetchone.return_value = (42,)
         cur.fetchall.return_value = []
         body = client.get("/containers").json()
         assert isinstance(body["total"], int)
